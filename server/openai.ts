@@ -68,6 +68,7 @@ export async function generateNewsReport(
 
 CRITICAL REQUIREMENTS:
 - Start with EXACTLY: "Here's your morning report for ${formattedDate}."
+- Include a brief "On This Day in History" section (1-2 sentences) near the end, before the closing
 - End with EXACTLY: "That's it for the morning report. Have a great day!"
 - MUST be approximately 1000 words (target length for comprehensive audio briefing)
 - EVERY story MUST include SPECIFIC details: names, numbers, locations, dates, companies
@@ -112,6 +113,14 @@ CONTENT SELECTION:
 - Focus on: major announcements, statistical changes, product launches, policy decisions
 - If NBA or Redlands news is notable and meets quality standards, prioritize it
 - Skip any topic (including priority topics) if the news isn't significant or lacks specifics
+
+ON THIS DAY IN HISTORY:
+- After covering the main news topics, include a brief "On This Day in History" segment
+- MUST be 1-2 sentences only
+- State an interesting, specific historical event that occurred on ${monthName} ${day}
+- Include the YEAR and specific FACTS (names, numbers, locations)
+- Example format: "On this day in [YEAR], [specific event with names and details]."
+- Keep it concise and factual - this is a brief transition before the closing
 
 QUALITY VALIDATION (each story must pass):
 ✅ Contains at least ONE specific organization/person name
