@@ -47,8 +47,12 @@ Preferred communication style: Simple, everyday language.
 
 1. **News Scraping Service** (`newsService.ts`):
    - Defines 13 curated news topics (world news, US news, local CA news, NBA, AI/ML, EVs, autonomous driving, humanoid robots, eVTOL, tech gadgets, anti-aging, telemedicine, travel)
-   - Maintains list of trusted news sources (Reuters, AP, BBC, NYT, WSJ, etc.)
-   - Simulated scraping function designed for replacement with real web scraping (Puppeteer/Cheerio) or news APIs
+   - **Multi-source implementation** with intelligent fallback:
+     - `scrapeNewsFromNewsAPI()`: Fetches from NewsAPI with retry logic (2 retries with exponential backoff)
+     - `scrapeNewsCurrentsAPI()`: Fetches from CurrentsAPI as fallback source
+     - `scrapeNews()`: Smart coordinator that tries NewsAPI first, falls back to CurrentsAPI if needed
+   - Robust error handling including rate limit detection, timeouts, and validation
+   - Filters articles for quality (minimum title/description length, valid source names)
 
 2. **OpenAI Integration** (`openai.ts`):
    - Report generation using GPT-4o with context from previous 5 reports to avoid repetition
@@ -103,9 +107,14 @@ Preferred communication style: Simple, everyday language.
 - Requires OPENAI_API_KEY environment variable
 
 **News Data Sources:**
-- Designed to integrate with news scraping (currently simulated)
-- Target sources: Reuters, AP News, BBC, New York Times, WSJ, The Guardian, CNBC, Bloomberg, TechCrunch, Wired, Ars Technica, Nature, ScienceDaily, NBA.com, ESPN
-- Future implementation could use NewsAPI, Google News API, or custom web scraping with Puppeteer
+- **Multi-source aggregation with intelligent fallback** (November 2025):
+  - **Primary**: NewsAPI (https://newsapi.org) - Free tier with daily rate limits
+  - **Secondary**: CurrentsAPI (https://currentsapi.services) - Free tier with daily quota limits
+  - **Fallback strategy**: Tries NewsAPI first for each topic; if rate-limited or fails, automatically falls back to CurrentsAPI
+  - **Note**: Both APIs have daily usage limits. When limits are exceeded, report generation will fail until limits reset (typically at midnight UTC)
+- Requires NEWSAPI_KEY and CURRENTS_API_KEY environment variables
+- Target sources aggregated through APIs: 85,000+ sources including Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, etc.
+- OpenAI web search investigated but not currently available with standard API tier
 
 **Database (Future):**
 - Neon Serverless PostgreSQL (configured but not yet active)
