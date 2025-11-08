@@ -119,6 +119,26 @@ Preferred communication style: Simple, everyday language.
 - Brave Search provides comprehensive web search results that OpenAI GPT-4o analyzes to select the most notable stories
 - Target sources include major news outlets: Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, and thousands more
 
+**News Caching System** (November 2025):
+- **Purpose**: Enables iterative testing of report generation/TTS without repeatedly hitting API rate limits
+- **Cache Storage**: Date-based JSON files stored in `/cache/news-YYYY-MM-DD.json`
+- **Smart Cache Logic**:
+  - Checks for valid cache before making API calls
+  - Validates minimum coverage (MIN_TOPICS_FOR_CACHE = 5 topics required)
+  - Rejects empty or sparse caches to prevent permanent failures
+  - Falls back to fresh API scrape if cached data is insufficient
+- **Cache Validation**:
+  - Read validation: Returns null if cache has <5 topics, triggering fresh fetch
+  - Write validation: Refuses to save caches with <5 topics, logs warning
+  - Prevents transient API failures from poisoning cache for entire day
+- **Cache Operations** (Development-only endpoints):
+  - `GET /api/cache/status` - View cache existence, size, topic count, timestamp
+  - `POST /api/cache/clear` - Delete today's cache file
+  - `POST /api/reports/regenerate?forceRefresh=true` - Regenerate with/without fresh data
+  - Protected by dev-only middleware (403 Forbidden in production)
+- **Workflow**: First scrape caches data → subsequent generations use cache → zero API calls after initial fetch
+- **Production Behavior**: Cache validates daily at 6:00 AM; if <5 topics, retries fresh scrape automatically
+
 **Database (Future):**
 - Neon Serverless PostgreSQL (configured but not yet active)
 - Requires DATABASE_URL environment variable when activated
