@@ -20,7 +20,15 @@ export async function generateDailyReport(): Promise<void> {
   const reportDate = new Date();
   reportDate.setHours(6, 0, 0, 0);
   
-  const reportText = await generateNewsReport(newsContent, previousReportTexts, reportDate);
+  let reportText = await generateNewsReport(newsContent, previousReportTexts, reportDate);
+  
+  // Validate and fix closing line to ensure consistency
+  const requiredClosing = "That's it for the morning report. Have a great day!";
+  if (!reportText.trim().endsWith(requiredClosing)) {
+    console.log("Warning: Fixing incorrect closing line");
+    // Remove any existing closing and add the correct one
+    reportText = reportText.trim().replace(/\n[^\n]*$/m, '') + "\n\n" + requiredClosing;
+  }
   
   console.log(`Step 5: Generated report (${reportText.length} characters)`);
   console.log("Step 6: Converting text to speech...");

@@ -4,8 +4,8 @@ import { NewsContent } from "./openai";
 export const NEWS_TOPICS = [
   { name: "World News", query: "breaking world news today major events" },
   { name: "US News", query: "united states news headlines today" },
-  { name: "Local CA News", query: "southern california news san bernardino county today" },
-  { name: "NBA", query: "NBA basketball news scores trades today" },
+  { name: "Redlands CA Local News", query: "Redlands California news" },
+  { name: "NBA", query: "NBA games highlights players standings" },
   { name: "AI & Machine Learning", query: "artificial intelligence breakthrough announcements today" },
   { name: "Electric Vehicles", query: "electric vehicle EV automotive news announcements" },
   { name: "Autonomous Driving", query: "self-driving autonomous vehicle technology news" },
