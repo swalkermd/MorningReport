@@ -16,7 +16,8 @@ export interface NewsContent {
 
 export async function generateNewsReport(
   newsContent: NewsContent[],
-  previousReports: string[]
+  previousReports: string[],
+  reportDate: Date
 ): Promise<string> {
   const newsContentStr = newsContent
     .map((section) => {
@@ -31,11 +32,30 @@ export async function generateNewsReport(
     ? `\n\nPrevious 5 reports (avoid repeating this content unless there are significant updates):\n${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}`
     : "";
 
+  // Format date for the intro (e.g., "Monday, November 8th, 2025")
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  const dayName = dayNames[reportDate.getDay()];
+  const monthName = monthNames[reportDate.getMonth()];
+  const day = reportDate.getDate();
+  const year = reportDate.getFullYear();
+  
+  // Add ordinal suffix (st, nd, rd, th)
+  const getOrdinalSuffix = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  };
+  
+  const formattedDate = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)}, ${year}`;
+
   const prompt = `You are an expert news anchor writing a daily morning news briefing called "Morning Report". Your task is to write an intelligent, engaging, and concise news report based on the following curated news content.
 
-CRITICAL LENGTH REQUIREMENT:
+CRITICAL REQUIREMENTS:
+- Your report MUST start with exactly this line: "Here's your morning report for ${formattedDate}."
 - Your report MUST be under 700 words to fit within technical constraints
-- Aim for 600-700 words maximum
+- Aim for 600-700 words maximum (including the intro line)
 - Be extremely selective about which stories to include
 
 GUIDELINES:
@@ -46,13 +66,12 @@ GUIDELINES:
 - Select only the MOST IMPORTANT 5-6 topics from the news content below
 - Use smooth transitions between topics
 - Write for spoken word delivery (short sentences, natural phrasing)
-- Avoid repetitive openings like "In today's news..." or "Let's move on to..."
 - Keep each topic section to 2-3 sentences maximum
 
 NEWS CONTENT BY TOPIC:
 ${newsContentStr}${previousReportsContext}
 
-Write the complete news report now (under 700 words):`;
+Write the complete news report now (under 700 words, starting with the required intro line):`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",

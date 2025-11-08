@@ -16,7 +16,11 @@ export async function generateDailyReport(): Promise<void> {
   console.log(`Step 3: Found ${previousReports.length} previous reports for context`);
   console.log("Step 4: Generating AI news report...");
   
-  const reportText = await generateNewsReport(newsContent, previousReportTexts);
+  // Set to 6 AM on the current day
+  const reportDate = new Date();
+  reportDate.setHours(6, 0, 0, 0);
+  
+  const reportText = await generateNewsReport(newsContent, previousReportTexts, reportDate);
   
   console.log(`Step 5: Generated report (${reportText.length} characters)`);
   console.log("Step 6: Converting text to speech...");
@@ -28,14 +32,10 @@ export async function generateDailyReport(): Promise<void> {
   await generateAudioFromText(reportText, audioPath);
   
   console.log(`Step 7: Audio generated at ${audioPath}`);
-  console.log("Step 8: Saving report to storage...");
-  
-  // Save report to storage
-  const today = new Date();
-  today.setHours(6, 0, 0, 0); // Set to 6 AM
+  console.log("Step 8: Saving report to storage..."); // Set to 6 AM
   
   await storage.createReport({
-    date: today,
+    date: reportDate,
     content: reportText,
     audioPath: `/audio/${audioFileName}`,
   });
