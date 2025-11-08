@@ -31,6 +31,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   useEffect(() => {
     if (!introAudioRef.current) {
       introAudioRef.current = new Audio(introMusicPath);
+      introAudioRef.current.playbackRate = 1.1;
     }
     
     return () => {
@@ -70,6 +71,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
       }
       
       const main = new Audio(currentAudioPath);
+      main.playbackRate = 1.1;
       mainAudioRef.current = main;
       loadedAudioPathRef.current = currentAudioPath;
       
