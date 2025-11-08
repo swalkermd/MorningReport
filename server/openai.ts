@@ -11,6 +11,8 @@ export interface NewsContent {
     title: string;
     summary: string;
     source: string;
+    url?: string;
+    publishedAt?: string;
   }>;
 }
 
@@ -19,10 +21,22 @@ export async function generateNewsReport(
   previousReports: string[],
   reportDate: Date
 ): Promise<string> {
-  const newsContentStr = newsContent
+  // Filter out topics with no valid articles
+  const validNewsContent = newsContent.filter(section => section.articles.length > 0);
+  
+  if (validNewsContent.length === 0) {
+    throw new Error('No valid news articles available - cannot generate quality report');
+  }
+  
+  const newsContentStr = validNewsContent
     .map((section) => {
       const articlesStr = section.articles
-        .map((article) => `- ${article.title}\n  ${article.summary}\n  Source: ${article.source}`)
+        .map((article) => {
+          const publishDate = article.publishedAt 
+            ? new Date(article.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : '';
+          return `- HEADLINE: ${article.title}\n  DETAILS: ${article.summary}\n  SOURCE: ${article.source}${publishDate ? ` (${publishDate})` : ''}`;
+        })
         .join("\n\n");
       return `## ${section.topic}\n\n${articlesStr}`;
     })
@@ -81,11 +95,23 @@ REQUIRED FORMAT for each story:
 ✅ "[Metric] increased/decreased by [number]% in [location/sector]"
 ✅ "[Organization] launched [specific product/initiative] featuring [details]"
 
+CITATION REQUIREMENTS:
+- ALWAYS mention the news SOURCE for each story (e.g., "according to Bloomberg", "Reuters reports", "as announced by...")
+- Include publication dates when available (e.g., "reported Thursday", "announced this week")
+- Attribute specific facts to their sources
+
 CONTENT SELECTION:
 - Only include stories with SPECIFIC, verifiable facts
+- MUST have: organization/person name + number/metric + location/timeframe
 - Skip any topic where source data is too vague
 - Better to cover 4-5 stories well than 8 stories poorly
 - Focus on: major announcements, statistical changes, product launches, policy decisions
+
+QUALITY VALIDATION (each story must pass):
+✅ Contains at least ONE specific organization/person name
+✅ Contains at least ONE specific number, percentage, or metric
+✅ Contains at least ONE specific location, date, or timeframe
+✅ Attributes information to a credible source
 
 DELIVERY STYLE:
 - Professional but conversational (NPR/BBC style)
@@ -96,7 +122,10 @@ DELIVERY STYLE:
 NEWS CONTENT BY TOPIC:
 ${newsContentStr}${previousReportsContext}
 
-Write your news report now. Remember: SPECIFIC FACTS ONLY. No vague generalizations. If a topic lacks specific information, skip it entirely.`;
+Write your news report now. Remember: 
+1. CITE your sources ("according to...", "reports...")
+2. SPECIFIC FACTS ONLY (names + numbers + dates)
+3. If a story can't meet quality standards, skip it entirely`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
