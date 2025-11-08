@@ -98,9 +98,10 @@ REQUIRED FORMAT for each story:
 ✅ "[Organization] launched [specific product/initiative] featuring [details]"
 
 CITATION REQUIREMENTS:
-- ALWAYS mention the news SOURCE for each story (e.g., "according to Bloomberg", "Reuters reports", "as announced by...")
-- Include publication dates when available (e.g., "reported Thursday", "announced this week")
-- Attribute specific facts to their sources
+- Only cite sources when pertinent to the story's credibility or context
+- Sources are NOT required for every piece of information
+- When citing: use natural attribution (e.g., "according to Bloomberg", "Reuters reports")
+- Include publication dates only when relevant to the story's timeliness
 
 CONTENT SELECTION:
 - PRIORITY TOPICS (prioritize these if notable): NBA, Redlands CA Local News
@@ -116,7 +117,6 @@ QUALITY VALIDATION (each story must pass):
 ✅ Contains at least ONE specific organization/person name
 ✅ Contains at least ONE specific number, percentage, or metric
 ✅ Contains at least ONE specific location, date, or timeframe
-✅ Attributes information to a credible source
 
 DELIVERY STYLE:
 - Professional but conversational (NPR/BBC style)
@@ -128,8 +128,8 @@ NEWS CONTENT BY TOPIC:
 ${newsContentStr}${previousReportsContext}
 
 Write your news report now. Remember: 
-1. CITE your sources ("according to...", "reports...")
-2. SPECIFIC FACTS ONLY (names + numbers + dates)
+1. SPECIFIC FACTS ONLY (names + numbers + dates)
+2. Cite sources only when pertinent to the story
 3. If a story can't meet quality standards, skip it entirely`;
 
   const response = await openai.chat.completions.create({
