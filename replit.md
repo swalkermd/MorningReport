@@ -47,12 +47,14 @@ Preferred communication style: Simple, everyday language.
 
 1. **News Scraping Service** (`newsService.ts`):
    - Defines 13 curated news topics (world news, US news, local CA news, NBA, AI/ML, EVs, autonomous driving, humanoid robots, eVTOL, tech gadgets, anti-aging, telemedicine, travel)
-   - **Multi-source implementation** with intelligent fallback:
-     - `scrapeNewsFromNewsAPI()`: Fetches from NewsAPI with retry logic (2 retries with exponential backoff)
-     - `scrapeNewsCurrentsAPI()`: Fetches from CurrentsAPI as fallback source
-     - `scrapeNews()`: Smart coordinator that tries NewsAPI first, falls back to CurrentsAPI if needed
-   - Robust error handling including rate limit detection, timeouts, and validation
-   - Filters articles for quality (minimum title/description length, valid source names)
+   - **Multi-source implementation** with intelligent three-tier fallback:
+     - `scrapeNewsBraveSearch()`: Primary source using Brave Search API with recent news filter (freshness=pd)
+     - `scrapeNewsFromNewsAPI()`: Secondary source with retry logic (2 retries with exponential backoff)
+     - `scrapeNewsCurrentsAPI()`: Tertiary fallback source
+     - `scrapeNews()`: Smart coordinator that tries Brave Search → NewsAPI → CurrentsAPI in sequence
+   - Robust error handling including rate limit detection, timeouts, timestamp normalization, and validation
+   - Filters articles for quality (minimum title/description length, valid URLs)
+   - OpenAI GPT-4o analyzes search results to select most notable stories for inclusion
 
 2. **OpenAI Integration** (`openai.ts`):
    - Report generation using GPT-4o with context from previous 5 reports to avoid repetition
@@ -107,14 +109,15 @@ Preferred communication style: Simple, everyday language.
 - Requires OPENAI_API_KEY environment variable
 
 **News Data Sources:**
-- **Multi-source aggregation with intelligent fallback** (November 2025):
-  - **Primary**: NewsAPI (https://newsapi.org) - Free tier with daily rate limits
-  - **Secondary**: CurrentsAPI (https://currentsapi.services) - Free tier with daily quota limits
-  - **Fallback strategy**: Tries NewsAPI first for each topic; if rate-limited or fails, automatically falls back to CurrentsAPI
-  - **Note**: Both APIs have daily usage limits. When limits are exceeded, report generation will fail until limits reset (typically at midnight UTC)
-- Requires NEWSAPI_KEY and CURRENTS_API_KEY environment variables
-- Target sources aggregated through APIs: 85,000+ sources including Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, etc.
-- OpenAI web search investigated but not currently available with standard API tier
+- **Multi-source aggregation with intelligent three-tier fallback** (November 2025):
+  - **Primary**: Brave Search API (https://brave.com/search/api/) - Generous free tier (2,000 queries/month)
+  - **Secondary**: NewsAPI (https://newsapi.org) - Free tier with daily rate limits
+  - **Tertiary**: CurrentsAPI (https://currentsapi.services) - Free tier with daily quota limits
+  - **Fallback strategy**: Tries Brave Search first for each topic; if rate-limited or fails, falls back to NewsAPI, then CurrentsAPI
+  - **Production fit**: With once-daily generation (13 queries/day = ~400/month), Brave Search free tier provides ample headroom
+- Requires BRAVE_SEARCH_API_KEY, NEWSAPI_KEY, and CURRENTS_API_KEY environment variables
+- Brave Search provides comprehensive web search results that OpenAI GPT-4o analyzes to select the most notable stories
+- Target sources include major news outlets: Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, and thousands more
 
 **Database (Future):**
 - Neon Serverless PostgreSQL (configured but not yet active)
