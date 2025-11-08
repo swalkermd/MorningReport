@@ -1,22 +1,32 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause } from "lucide-react";
 import introMusicPath from "@assets/Intro-news_1762617356857.mp3";
 
 interface AudioPlayerProps {
   audioPath?: string | null;
+  audioPaths?: string[] | null;
   reportDate: string | Date;
   "data-testid"?: string;
 }
 
-export function AudioPlayer({ audioPath, reportDate, "data-testid": testId }: AudioPlayerProps) {
+export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": testId }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
+  const [currentSegment, setCurrentSegment] = useState(0);
 
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const mainAudioRef = useRef<HTMLAudioElement | null>(null);
   const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [currentReport, setCurrentReport] = useState<string | null | undefined>(audioPath);
+  const loadedAudioPathRef = useRef<string | null>(null);
+  
+  // Use audioPaths array if available, otherwise fall back to single audioPath
+  // Memoize to prevent effect from retriggering on every render
+  const audioSegments = useMemo(
+    () => audioPaths && audioPaths.length > 0 ? audioPaths : (audioPath ? [audioPath] : []),
+    [audioPaths, audioPath]
+  );
 
   useEffect(() => {
     if (!introAudioRef.current) {
@@ -43,19 +53,36 @@ export function AudioPlayer({ audioPath, reportDate, "data-testid": testId }: Au
       if (mainAudioRef.current) {
         mainAudioRef.current.pause();
         mainAudioRef.current = null;
+        loadedAudioPathRef.current = null;
       }
       setIsPlaying(false);
       setIsIntroPlaying(false);
+      setCurrentSegment(0);
       setCurrentReport(audioPath);
     }
 
-    if (audioPath && !mainAudioRef.current) {
-      const main = new Audio(audioPath);
+    const currentAudioPath = audioSegments[currentSegment];
+    
+    // Only create new Audio if we haven't loaded this path yet
+    if (currentAudioPath && loadedAudioPathRef.current !== currentAudioPath) {
+      if (mainAudioRef.current) {
+        mainAudioRef.current.pause();
+      }
+      
+      const main = new Audio(currentAudioPath);
       mainAudioRef.current = main;
+      loadedAudioPathRef.current = currentAudioPath;
       
       const handleEnded = () => {
-        setIsPlaying(false);
-        setIsIntroPlaying(false);
+        if (currentSegment < audioSegments.length - 1) {
+          setCurrentSegment(prev => prev + 1);
+          loadedAudioPathRef.current = null; // Clear so next segment loads
+        } else {
+          setIsPlaying(false);
+          setIsIntroPlaying(false);
+          setCurrentSegment(0);
+          loadedAudioPathRef.current = null;
+        }
       };
 
       main.addEventListener("ended", handleEnded);
@@ -64,10 +91,38 @@ export function AudioPlayer({ audioPath, reportDate, "data-testid": testId }: Au
         main.removeEventListener("ended", handleEnded);
       };
     }
-  }, [audioPath, currentReport]);
+  }, [audioPath, currentReport, currentSegment, audioSegments]);
+
+  useEffect(() => {
+    if (isPlaying && !isIntroPlaying && mainAudioRef.current && mainAudioRef.current.paused) {
+      mainAudioRef.current.volume = 0;
+      mainAudioRef.current.play().then(() => {
+        const fadeInSteps = 10;
+        const fadeInInterval = 50;
+        const targetVolume = 1;
+        const volumeIncrement = targetVolume / fadeInSteps;
+        
+        fadeIntervalRef.current = setInterval(() => {
+          if (mainAudioRef.current) {
+            if (mainAudioRef.current.volume < targetVolume - volumeIncrement) {
+              mainAudioRef.current.volume = Math.min(targetVolume, mainAudioRef.current.volume + volumeIncrement);
+            } else {
+              mainAudioRef.current.volume = targetVolume;
+              if (fadeIntervalRef.current) {
+                clearInterval(fadeIntervalRef.current);
+                fadeIntervalRef.current = null;
+              }
+            }
+          }
+        }, fadeInInterval);
+      }).catch(err => {
+        console.error("Error auto-playing next segment:", err);
+      });
+    }
+  }, [currentSegment, isPlaying, isIntroPlaying]);
 
   const handlePlayPause = async () => {
-    if (!audioPath) return;
+    if (audioSegments.length === 0) return;
 
     const intro = introAudioRef.current;
     const main = mainAudioRef.current;
@@ -202,7 +257,7 @@ export function AudioPlayer({ audioPath, reportDate, "data-testid": testId }: Au
     }
   };
 
-  if (!audioPath) {
+  if (audioSegments.length === 0) {
     return (
       <Button
         className="w-full h-12"

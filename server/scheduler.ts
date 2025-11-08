@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { generateDailyReport } from "./reportGenerator";
+import { storage } from "./storage";
 
 export function startScheduler() {
   // Schedule daily report generation at 6:00 AM PST
@@ -27,7 +28,6 @@ export function startScheduler() {
   // Also generate a report on startup if there isn't one for today (for testing)
   setTimeout(async () => {
     console.log("Checking if we need to generate an initial report...");
-    const { storage } = await import("./storage");
     const latestReport = await storage.getLatestReport();
     
     const today = new Date();

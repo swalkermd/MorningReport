@@ -156,22 +156,119 @@ Write your news report now. Remember:
   return content;
 }
 
+function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
+  const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  for (const paragraph of paragraphs) {
+    const testChunk = currentChunk ? `${currentChunk}\n\n${paragraph}` : paragraph;
+    
+    if (testChunk.length <= maxChars) {
+      currentChunk = testChunk;
+    } else {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+      currentChunk = '';
+      
+      if (paragraph.length > maxChars) {
+        const sentences = paragraph.split('. ');
+        let sentenceChunk = '';
+        
+        for (const sentence of sentences) {
+          if (sentence.trim().length === 0) continue;
+          
+          const testSentence = sentenceChunk ? `${sentenceChunk}. ${sentence}` : sentence;
+          
+          if (testSentence.length <= maxChars) {
+            sentenceChunk = testSentence;
+          } else {
+            if (sentenceChunk) {
+              chunks.push(sentenceChunk);
+              sentenceChunk = '';
+            }
+            
+            if (sentence.length > maxChars) {
+              let remaining = sentence;
+              while (remaining.length > maxChars) {
+                chunks.push(remaining.substring(0, maxChars));
+                remaining = remaining.substring(maxChars);
+              }
+              if (remaining.trim().length > 0) {
+                sentenceChunk = remaining;
+              }
+            } else {
+              sentenceChunk = sentence;
+            }
+          }
+        }
+        
+        if (sentenceChunk.trim().length > 0) {
+          currentChunk = sentenceChunk;
+        }
+      } else {
+        currentChunk = paragraph;
+      }
+    }
+  }
+
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks.filter(chunk => chunk.trim().length > 0);
+}
+
 export async function generateAudioFromText(
   text: string,
-  outputPath: string
-): Promise<void> {
-  const mp3 = await openai.audio.speech.create({
-    model: "tts-1-hd",
-    voice: "nova",
-    input: text,
-  });
-
-  const buffer = Buffer.from(await mp3.arrayBuffer());
+  baseOutputPath: string
+): Promise<string[]> {
+  const chunks = splitTextIntoChunks(text, 4000);
+  const audioPaths: string[] = [];
+  const tempPaths: string[] = [];
   
-  const dir = path.dirname(outputPath);
+  const dir = path.dirname(baseOutputPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  
-  fs.writeFileSync(outputPath, buffer);
+
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkPath = chunks.length > 1 
+        ? baseOutputPath.replace('.mp3', `-part${i + 1}.mp3`)
+        : baseOutputPath;
+      
+      const tempPath = `${chunkPath}.tmp`;
+      tempPaths.push(tempPath);
+      
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1-hd",
+        voice: "nova",
+        input: chunks[i],
+      });
+
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+      fs.writeFileSync(tempPath, buffer);
+      
+      fs.renameSync(tempPath, chunkPath);
+      audioPaths.push(chunkPath);
+    }
+
+    return audioPaths;
+  } catch (error) {
+    for (const tempPath of tempPaths) {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+    }
+    
+    for (const audioPath of audioPaths) {
+      if (fs.existsSync(audioPath)) {
+        fs.unlinkSync(audioPath);
+      }
+    }
+    
+    throw error;
+  }
 }

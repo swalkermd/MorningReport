@@ -41,7 +41,10 @@ export class MemStorage implements IStorage {
   async createReport(insertReport: InsertReport): Promise<Report> {
     const id = randomUUID();
     const report: Report = {
-      ...insertReport,
+      date: insertReport.date,
+      content: insertReport.content,
+      audioPath: insertReport.audioPath ?? null,
+      audioPaths: insertReport.audioPaths ?? null,
       id,
       generatedAt: new Date(),
     };

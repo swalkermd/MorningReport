@@ -22,6 +22,7 @@ export const reports = pgTable("reports", {
   date: timestamp("date").notNull(),
   content: text("content").notNull(),
   audioPath: text("audio_path"),
+  audioPaths: text("audio_paths").array(),
   generatedAt: timestamp("generated_at").notNull().defaultNow(),
 });
 

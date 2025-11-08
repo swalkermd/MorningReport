@@ -33,19 +33,26 @@ export async function generateDailyReport(): Promise<void> {
   console.log(`Step 5: Generated report (${reportText.length} characters)`);
   console.log("Step 6: Converting text to speech...");
   
-  // Generate audio file
+  // Generate audio file(s) - may be split into multiple parts
   const audioFileName = `report-${Date.now()}.mp3`;
   const audioPath = path.join(process.cwd(), "audio-reports", audioFileName);
   
-  await generateAudioFromText(reportText, audioPath);
+  const generatedAudioPaths = await generateAudioFromText(reportText, audioPath);
   
-  console.log(`Step 7: Audio generated at ${audioPath}`);
-  console.log("Step 8: Saving report to storage..."); // Set to 6 AM
+  console.log(`Step 7: Audio generated - ${generatedAudioPaths.length} part(s)`);
+  console.log("Step 8: Saving report to storage...");
+  
+  // Convert file system paths to web paths
+  const webAudioPaths = generatedAudioPaths.map(p => {
+    const fileName = path.basename(p);
+    return `/audio/${fileName}`;
+  });
   
   await storage.createReport({
     date: reportDate,
     content: reportText,
-    audioPath: `/audio/${audioFileName}`,
+    audioPath: webAudioPaths[0],
+    audioPaths: webAudioPaths,
   });
   
   console.log("Report generation complete!");

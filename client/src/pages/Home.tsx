@@ -42,6 +42,7 @@ export default function Home() {
           <>
             <AudioPlayer
               audioPath={report.audioPath}
+              audioPaths={report.audioPaths}
               reportDate={report.date}
               data-testid="audio-player"
             />
