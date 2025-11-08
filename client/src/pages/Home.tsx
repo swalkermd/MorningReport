@@ -17,10 +17,12 @@ export default function Home() {
 
   return (
     <div className="h-screen w-full overflow-hidden flex flex-col bg-background">
-      {/* Framed image with burnt orange background extending to edges */}
+      {/* Framed image with morning gradient background (burnt orange to sky blue) */}
       <div 
         className="w-full flex-shrink-0 flex items-center justify-center p-4 md:p-6"
-        style={{ backgroundColor: '#BE7348' }}
+        style={{ 
+          background: 'linear-gradient(to top, #BE7348 0%, #87CEEB 100%)'
+        }}
       >
         <img
           src={sunriseImage}

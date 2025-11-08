@@ -69,7 +69,7 @@ export async function generateNewsReport(
 CRITICAL REQUIREMENTS:
 - Start with EXACTLY: "Here's your morning report for ${formattedDate}."
 - End with EXACTLY: "That's it for the morning report. Have a great day!"
-- MUST be 600-700 words maximum (strict limit for audio)
+- MUST be approximately 1000 words (target length for comprehensive audio briefing)
 - EVERY story MUST include SPECIFIC details: names, numbers, locations, dates, companies
 - ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
 - REJECT generic content - if source data lacks specifics, skip that topic entirely
@@ -103,14 +103,14 @@ CITATION REQUIREMENTS:
 - Attribute specific facts to their sources
 
 CONTENT SELECTION:
-- PRIORITY TOPICS (include these first if news is available): NBA, Redlands CA Local News
+- PRIORITY TOPICS (prioritize these if notable): NBA, Redlands CA Local News
 - Only include stories with SPECIFIC, verifiable facts
 - MUST have: organization/person name + number/metric + location/timeframe
-- Skip any topic where source data is too vague
-- Better to cover 4-5 stories well than 8 stories poorly
+- Skip any topic where source data is too vague or story isn't newsworthy
+- Better to cover stories well than force inclusion of unremarkable content
 - Focus on: major announcements, statistical changes, product launches, policy decisions
-- Always include at least one NBA story if NBA news is available
-- Always include at least one Redlands CA story if local news is available
+- If NBA or Redlands news is notable and meets quality standards, prioritize it
+- Skip any topic (including priority topics) if the news isn't significant or lacks specifics
 
 QUALITY VALIDATION (each story must pass):
 ✅ Contains at least ONE specific organization/person name
