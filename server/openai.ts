@@ -1,0 +1,88 @@
+import OpenAI from "openai";
+import fs from "fs";
+import path from "path";
+
+// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+export interface NewsContent {
+  topic: string;
+  articles: Array<{
+    title: string;
+    summary: string;
+    source: string;
+  }>;
+}
+
+export async function generateNewsReport(
+  newsContent: NewsContent[],
+  previousReports: string[]
+): Promise<string> {
+  const newsContentStr = newsContent
+    .map((section) => {
+      const articlesStr = section.articles
+        .map((article) => `- ${article.title}\n  ${article.summary}\n  Source: ${article.source}`)
+        .join("\n\n");
+      return `## ${section.topic}\n\n${articlesStr}`;
+    })
+    .join("\n\n");
+
+  const previousReportsContext = previousReports.length > 0
+    ? `\n\nPrevious 5 reports (avoid repeating this content unless there are significant updates):\n${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}`
+    : "";
+
+  const prompt = `You are an expert news anchor writing a daily morning news briefing called "Morning Report". Your task is to write an intelligent, engaging, and concise news report of approximately 1000 words based on the following curated news content.
+
+GUIDELINES:
+- Write in a professional but conversational tone suitable for audio delivery
+- Focus on news items that are NEW and have not been covered in detail in previous reports
+- If a story continues from previous reports, only include it if there are NOTABLE UPDATES
+- Be concise and direct - minimize banter and filler phrases
+- Organize the report by topic sections when it makes sense
+- Use smooth transitions between topics
+- Write for spoken word delivery (short sentences, natural phrasing)
+- Avoid repetitive openings like "In today's news..." or "Let's move on to..."
+- Target approximately 1000 words
+
+NEWS CONTENT BY TOPIC:
+${newsContentStr}${previousReportsContext}
+
+Write the complete news report now:`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5",
+    messages: [
+      {
+        role: "system",
+        content: "You are a professional news anchor writing daily audio news briefings. Write in a clear, engaging style suitable for spoken delivery.",
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    max_completion_tokens: 2500,
+  });
+
+  return response.choices[0].message.content || "";
+}
+
+export async function generateAudioFromText(
+  text: string,
+  outputPath: string
+): Promise<void> {
+  const mp3 = await openai.audio.speech.create({
+    model: "tts-1-hd",
+    voice: "nova",
+    input: text,
+  });
+
+  const buffer = Buffer.from(await mp3.arrayBuffer());
+  
+  const dir = path.dirname(outputPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  
+  fs.writeFileSync(outputPath, buffer);
+}
