@@ -2,7 +2,7 @@
 
 ## Overview
 
-Morning Report is a web-based application that automatically generates and delivers a personalized daily audio news briefing. Each morning at 6:00 AM PST, the system scrapes news from trusted sources across curated topics (world news, tech, sports, AI, health, travel, etc.), uses OpenAI to synthesize an intelligent ~600-700 word report that avoids repeating previous content, converts it to natural-sounding speech via text-to-speech, and presents it through a clean, audio-first web interface featuring a prominent play button and scrollable text report alongside a sunrise image.
+Morning Report is a web-based application that automatically generates and delivers a personalized daily audio news briefing. Each morning at 6:00 AM PST, the system scrapes news from trusted sources across curated topics (world news, US news, Redlands CA local, NBA, AI, EVs, autonomous driving, humanoid robots, eVTOL, gadgets, anti-aging, virtual medicine, travel), uses OpenAI GPT-4o to synthesize an intelligent ~1000 word report that avoids repeating previous content, converts it to natural-sounding speech via text-to-speech (split into multiple segments to handle OpenAI's 4096 character TTS limit), and presents it through a clean, audio-first web interface featuring a prominent play button and scrollable text report alongside a framed sunrise image with gradient background (burnt orange to sky blue).
 
 ## User Preferences
 
@@ -27,7 +27,11 @@ Preferred communication style: Simple, everyday language.
 - Warm morning aesthetic using custom color palette with neutral base tones
 
 **Component Structure:**
-- `AudioPlayer`: Custom audio player with intro music fade-in/out, progress tracking, volume controls
+- `AudioPlayer`: Custom audio player with intro music fade-in/out, multi-segment playback, memoized dependencies
+  - Uses `useMemo` for audioSegments array to prevent effect re-triggering
+  - Stable audio references via `loadedAudioPathRef` prevent playback restarts during re-renders
+  - Automatically advances through multiple audio segments seamlessly
+  - Intro music fades in/out between segments
 - `ReportDisplay`: Scrollable text report container with copy-to-clipboard functionality
 - Extensive shadcn/ui component library for consistent UI primitives
 - Path aliases configured (@/ for client/src, @shared for shared types, @assets for static assets)
@@ -48,8 +52,14 @@ Preferred communication style: Simple, everyday language.
 
 2. **OpenAI Integration** (`openai.ts`):
    - Report generation using GPT-4o with context from previous 5 reports to avoid repetition
-   - Strict 600-700 word limit enforced for audio playback constraints
-   - Text-to-speech conversion using OpenAI's TTS API
+   - Target ~1000 word length for comprehensive coverage
+   - **Multi-segment audio generation**: Intelligently splits text into chunks <4096 characters (OpenAI TTS limit)
+     - Splits at paragraph boundaries when possible
+     - Falls back to sentence-level splitting for long paragraphs
+     - Uses character-level hard split as final fallback to guarantee all segments stay under limit
+     - Filters empty paragraphs/sentences
+   - **Atomic file creation**: Writes to temporary files, renames on success, cleans up all files on error
+   - Text-to-speech conversion using OpenAI's TTS API (nova voice, tts-1-hd model)
    - Natural, conversational tone optimized for audio delivery
 
 3. **Report Generator** (`reportGenerator.ts`):
@@ -75,7 +85,9 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design** (defined in `shared/schema.ts` with Drizzle ORM):
 - **users table**: id (UUID), username (unique), password
-- **reports table**: id (UUID), date (timestamp), content (text), audioPath (text), generatedAt (timestamp with default now)
+- **reports table**: id (UUID), date (timestamp), content (text), audioPath (text), audioPaths (text array), generatedAt (timestamp with default now)
+  - `audioPath`: Single audio file path (backward compatibility)
+  - `audioPaths`: Array of audio file paths for multi-segment reports
 - Drizzle configuration present for PostgreSQL migration path via Neon serverless driver
 - Zod schemas for runtime validation of insert operations
 
