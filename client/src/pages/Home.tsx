@@ -27,7 +27,7 @@ export default function Home() {
         <img
           src={sunriseImage}
           alt="Morning Report"
-          className="max-w-full max-h-[45vh] md:max-h-[50vh] object-contain"
+          className="max-w-full max-h-[45vh] md:max-h-[50vh] object-contain rounded-lg"
           data-testid="img-morning-report"
         />
       </div>
