@@ -1,118 +1,90 @@
 import { NewsContent } from "./openai";
 
-// News topics configuration
+// News topics configuration - refined for better search results
 export const NEWS_TOPICS = [
-  { name: "World News", query: "world news today" },
-  { name: "US News", query: "united states news today" },
-  { name: "Local News", query: "92373 zip code news southern california" },
-  { name: "NBA", query: "NBA basketball news today" },
-  { name: "AI & Machine Learning", query: "artificial intelligence AI news today" },
-  { name: "Electric Vehicles", query: "electric vehicles EV news today" },
-  { name: "Autonomous Driving", query: "autonomous driving self-driving car news today" },
-  { name: "Humanoid Robots", query: "humanoid robots news today" },
-  { name: "eVTOL & Flying Vehicles", query: "eVTOL flying car news today" },
-  { name: "Tech Gadgets", query: "new technology gadgets 2025" },
-  { name: "Anti-Aging Science", query: "anti-aging longevity supplements science news" },
-  { name: "Virtual Medicine", query: "telemedicine virtual healthcare news" },
-  { name: "Travel", query: "travel news destinations today" },
+  { name: "World News", query: "breaking world news today major events" },
+  { name: "US News", query: "united states news headlines today" },
+  { name: "Local CA News", query: "southern california news san bernardino county today" },
+  { name: "NBA", query: "NBA basketball news scores trades today" },
+  { name: "AI & Machine Learning", query: "artificial intelligence breakthrough announcements today" },
+  { name: "Electric Vehicles", query: "electric vehicle EV automotive news announcements" },
+  { name: "Autonomous Driving", query: "self-driving autonomous vehicle technology news" },
+  { name: "Humanoid Robots", query: "humanoid robot development boston dynamics tesla optimus" },
+  { name: "eVTOL & Flying Vehicles", query: "eVTOL flying car urban air mobility news" },
+  { name: "Tech Gadgets", query: "consumer technology gadget product launches 2025" },
+  { name: "Anti-Aging Science", query: "longevity anti-aging research breakthrough" },
+  { name: "Virtual Medicine", query: "telemedicine digital health technology news" },
+  { name: "Travel", query: "travel industry airlines destinations news today" },
 ];
-
-const TRUSTED_SOURCES = [
-  "reuters.com",
-  "apnews.com",
-  "bbc.com",
-  "nytimes.com",
-  "wsj.com",
-  "theguardian.com",
-  "cnbc.com",
-  "bloomberg.com",
-  "techcrunch.com",
-  "wired.com",
-  "arstechnica.com",
-  "nature.com",
-  "sciencedaily.com",
-  "nba.com",
-  "espn.com",
-];
-
-interface SearchResult {
-  title: string;
-  snippet: string;
-  link: string;
-  source: string;
-}
 
 /**
- * Simulates news scraping from trusted sources
- * In production, this would use actual web scraping with puppeteer/cheerio
- * or news APIs like NewsAPI, Google News API, etc.
+ * Fetches real news for a given topic using NewsAPI
+ * Falls back to simulated data if API unavailable
  */
 export async function scrapeNews(topic: { name: string; query: string }): Promise<NewsContent> {
-  // For MVP, we'll simulate news scraping with realistic mock data
-  // In production, implement actual scraping:
-  // - Use Google Custom Search API or similar
-  // - Scrape RSS feeds from trusted sources
-  // - Use NewsAPI.org or similar services
-  
-  const mockArticles = await simulateNewsSearch(topic.query);
-  
-  return {
-    topic: topic.name,
-    articles: mockArticles.slice(0, 3).map(article => ({
-      title: article.title,
-      summary: article.snippet,
-      source: article.source,
-    })),
-  };
+  try {
+    // Use NewsAPI if available
+    const apiKey = process.env.NEWSAPI_KEY;
+    
+    if (apiKey) {
+      const response = await fetch(
+        `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic.query)}&sortBy=publishedAt&language=en&pageSize=5&apiKey=${apiKey}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.articles && data.articles.length > 0) {
+          return {
+            topic: topic.name,
+            articles: data.articles.slice(0, 3).map((article: any) => ({
+              title: article.title,
+              summary: article.description || article.content?.substring(0, 200) || '',
+              source: article.source.name,
+              url: article.url,
+              publishedAt: article.publishedAt,
+            })),
+          };
+        }
+      }
+    }
+    
+    // Fallback: Return placeholder that indicates real news fetching needed
+    console.log(`NewsAPI not available for ${topic.name}, using fallback`);
+    return {
+      topic: topic.name,
+      articles: [{
+        title: `Latest updates in ${topic.name}`,
+        summary: `Search for: ${topic.query}`,
+        source: "Aggregated",
+      }],
+    };
+    
+  } catch (error) {
+    console.error(`Error fetching news for ${topic.name}:`, error);
+    return {
+      topic: topic.name,
+      articles: [],
+    };
+  }
 }
 
 export async function scrapeAllNews(): Promise<NewsContent[]> {
   const results: NewsContent[] = [];
   
+  // Fetch news for each topic sequentially to avoid rate limiting
   for (const topic of NEWS_TOPICS) {
     try {
       const content = await scrapeNews(topic);
       if (content.articles.length > 0) {
         results.push(content);
       }
+      // Small delay to respect rate limits
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error(`Error scraping news for ${topic.name}:`, error);
     }
   }
   
   return results;
-}
-
-/**
- * Simulates news search results
- * Replace with actual implementation using:
- * - Google Custom Search API
- * - NewsAPI.org
- * - Scraping with Cheerio/Puppeteer
- */
-async function simulateNewsSearch(query: string): Promise<SearchResult[]> {
-  // This is mock data for demonstration
-  // In production, replace with actual API calls or web scraping
-  
-  const templates = [
-    {
-      title: `Breaking: Major Development in ${query}`,
-      snippet: `Experts report significant progress in the field. Latest findings suggest new advancements that could reshape the industry in coming months.`,
-    },
-    {
-      title: `Analysis: ${query} Trends for 2025`,
-      snippet: `Industry analysts weigh in on emerging patterns and what they mean for consumers and businesses. Key stakeholders share insights on future directions.`,
-    },
-    {
-      title: `Update: ${query} Sees New Momentum`,
-      snippet: `Recent data shows increased activity and innovation. Stakeholders remain optimistic about upcoming developments and their potential impact.`,
-    },
-  ];
-  
-  return templates.map((template, index) => ({
-    title: template.title,
-    snippet: template.snippet,
-    link: `https://example.com/${index}`,
-    source: TRUSTED_SOURCES[index % TRUSTED_SOURCES.length],
-  }));
 }

@@ -20,7 +20,7 @@ export default function Home() {
       {/* Framed image with burnt orange background extending to edges */}
       <div 
         className="w-full flex-shrink-0 flex items-center justify-center p-4 md:p-6"
-        style={{ backgroundColor: '#C07850' }}
+        style={{ backgroundColor: '#BE7348' }}
       >
         <img
           src={sunriseImage}
