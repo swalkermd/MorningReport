@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause } from "lucide-react";
-import introMusicPath from "@assets/Intro-news_1762617356857.mp3";
+import introMusicPath from "@assets/news-intro-344332_1762626212380.mp3";
 
 interface AudioPlayerProps {
   audioPath?: string | null;
