@@ -20,25 +20,57 @@ export function AudioPlayer({ audioPath, reportDate, "data-testid": testId }: Au
 
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const mainAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentReportRef = useRef<string | undefined>(audioPath);
 
+  // Initialize audio elements once
   useEffect(() => {
-    introAudioRef.current = new Audio(introMusicPath);
-    if (audioPath) {
-      mainAudioRef.current = new Audio(audioPath);
+    if (!introAudioRef.current) {
+      introAudioRef.current = new Audio(introMusicPath);
+    }
+    
+    return () => {
+      // Cleanup on unmount
+      if (introAudioRef.current) {
+        introAudioRef.current.pause();
+        introAudioRef.current = null;
+      }
+      if (mainAudioRef.current) {
+        mainAudioRef.current.pause();
+        mainAudioRef.current = null;
+      }
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Handle audio path changes (new report)
+  useEffect(() => {
+    if (audioPath && audioPath !== currentReportRef.current) {
+      // New report - reset everything
+      if (mainAudioRef.current) {
+        mainAudioRef.current.pause();
+        mainAudioRef.current = null;
+      }
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+      setIsIntroPlaying(false);
+      currentReportRef.current = audioPath;
     }
 
-    const intro = introAudioRef.current;
-    const main = mainAudioRef.current;
-
-    if (intro) {
-      intro.volume = volume;
-    }
-    if (main) {
+    if (audioPath && !mainAudioRef.current) {
+      const main = new Audio(audioPath);
       main.volume = volume;
+      mainAudioRef.current = main;
       
       const updateTime = () => setCurrentTime(main.currentTime);
-      const updateDuration = () => setDuration(main.duration);
-      const handleEnded = () => setIsPlaying(false);
+      const updateDuration = () => setDuration(main.duration || 0);
+      const handleEnded = () => {
+        setIsPlaying(false);
+        setIsIntroPlaying(false);
+      };
 
       main.addEventListener("timeupdate", updateTime);
       main.addEventListener("loadedmetadata", updateDuration);
@@ -61,40 +93,124 @@ export function AudioPlayer({ audioPath, reportDate, "data-testid": testId }: Au
     if (!intro || !main) return;
 
     if (isPlaying) {
-      intro.pause();
-      main.pause();
+      // Stop playback with fade out
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+
+      const currentlyPlaying = isIntroPlaying ? intro : main;
+      const targetVolume = 0;
+      const fadeSteps = 10;
+      const fadeInterval = 50;
+      const volumeDecrement = currentlyPlaying.volume / fadeSteps;
+
+      fadeIntervalRef.current = setInterval(() => {
+        if (currentlyPlaying.volume > volumeDecrement) {
+          currentlyPlaying.volume = Math.max(0, currentlyPlaying.volume - volumeDecrement);
+        } else {
+          currentlyPlaying.volume = targetVolume;
+          currentlyPlaying.pause();
+          if (fadeIntervalRef.current) {
+            clearInterval(fadeIntervalRef.current);
+            fadeIntervalRef.current = null;
+          }
+        }
+      }, fadeInterval);
+
       setIsPlaying(false);
       setIsIntroPlaying(false);
     } else {
+      // Start playback
       setIsPlaying(true);
       setIsIntroPlaying(true);
 
       intro.currentTime = 0;
-      intro.volume = volume;
+      intro.volume = 0;
       
       try {
         await intro.play();
 
-        const fadeOutDuration = 2000;
-        const fadeOutStart = (intro.duration - fadeOutDuration / 1000) * 1000;
+        // Fade in intro
+        const fadeInSteps = 10;
+        const fadeInInterval = 50;
+        const volumeIncrement = volume / fadeInSteps;
         
-        setTimeout(() => {
-          const fadeOutInterval = setInterval(() => {
-            if (intro.volume > 0.1) {
-              intro.volume = Math.max(0, intro.volume - 0.1);
-            } else {
-              clearInterval(fadeOutInterval);
-              intro.pause();
-              setIsIntroPlaying(false);
+        fadeIntervalRef.current = setInterval(() => {
+          if (intro.volume < volume - volumeIncrement) {
+            intro.volume = Math.min(volume, intro.volume + volumeIncrement);
+          } else {
+            intro.volume = volume;
+            if (fadeIntervalRef.current) {
+              clearInterval(fadeIntervalRef.current);
+              fadeIntervalRef.current = null;
             }
-          }, 100);
-        }, fadeOutStart);
+          }
+        }, fadeInInterval);
+
+        // Wait for metadata to be loaded
+        if (!intro.duration) {
+          await new Promise<void>((resolve) => {
+            intro.addEventListener("loadedmetadata", () => resolve(), { once: true });
+          });
+        }
+
+        // Schedule fade out (2 seconds before end, min 2 second intro)
+        if (intro.duration && intro.duration > 2) {
+          const fadeOutDuration = 2000;
+          const fadeOutStart = Math.max(0, (intro.duration - fadeOutDuration / 1000) * 1000);
+          
+          setTimeout(() => {
+            if (fadeIntervalRef.current) {
+              clearInterval(fadeIntervalRef.current);
+            }
+
+            const fadeSteps = 20;
+            const fadeInterval = fadeOutDuration / fadeSteps;
+            const volumeDecrement = intro.volume / fadeSteps;
+
+            fadeIntervalRef.current = setInterval(() => {
+              if (intro.volume > volumeDecrement) {
+                intro.volume = Math.max(0, intro.volume - volumeDecrement);
+              } else {
+                intro.volume = 0;
+                intro.pause();
+                if (fadeIntervalRef.current) {
+                  clearInterval(fadeIntervalRef.current);
+                  fadeIntervalRef.current = null;
+                }
+                setIsIntroPlaying(false);
+              }
+            }, fadeInterval);
+          }, fadeOutStart);
+        }
 
         intro.addEventListener("ended", async () => {
           setIsIntroPlaying(false);
-          main.volume = volume;
+          if (!isPlaying) return; // User stopped during intro
+          
+          main.volume = 0;
+          main.currentTime = 0;
+          
           try {
             await main.play();
+            
+            // Fade in main track
+            const fadeInSteps = 10;
+            const fadeInInterval = 50;
+            const volumeIncrement = volume / fadeInSteps;
+            
+            fadeIntervalRef.current = setInterval(() => {
+              if (main.volume < volume - volumeIncrement) {
+                main.volume = Math.min(volume, main.volume + volumeIncrement);
+              } else {
+                main.volume = volume;
+                if (fadeIntervalRef.current) {
+                  clearInterval(fadeIntervalRef.current);
+                  fadeIntervalRef.current = null;
+                }
+              }
+            }, fadeInInterval);
           } catch (err) {
             console.error("Error playing main audio:", err);
             setIsPlaying(false);

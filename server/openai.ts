@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+// the newest OpenAI model is "gpt-4o" which is the most capable model available
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface NewsContent {
@@ -31,26 +31,31 @@ export async function generateNewsReport(
     ? `\n\nPrevious 5 reports (avoid repeating this content unless there are significant updates):\n${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}`
     : "";
 
-  const prompt = `You are an expert news anchor writing a daily morning news briefing called "Morning Report". Your task is to write an intelligent, engaging, and concise news report of approximately 1000 words based on the following curated news content.
+  const prompt = `You are an expert news anchor writing a daily morning news briefing called "Morning Report". Your task is to write an intelligent, engaging, and concise news report based on the following curated news content.
+
+CRITICAL LENGTH REQUIREMENT:
+- Your report MUST be under 700 words to fit within technical constraints
+- Aim for 600-700 words maximum
+- Be extremely selective about which stories to include
 
 GUIDELINES:
 - Write in a professional but conversational tone suitable for audio delivery
 - Focus on news items that are NEW and have not been covered in detail in previous reports
 - If a story continues from previous reports, only include it if there are NOTABLE UPDATES
 - Be concise and direct - minimize banter and filler phrases
-- Organize the report by topic sections when it makes sense
+- Select only the MOST IMPORTANT 5-6 topics from the news content below
 - Use smooth transitions between topics
 - Write for spoken word delivery (short sentences, natural phrasing)
 - Avoid repetitive openings like "In today's news..." or "Let's move on to..."
-- Target approximately 1000 words
+- Keep each topic section to 2-3 sentences maximum
 
 NEWS CONTENT BY TOPIC:
 ${newsContentStr}${previousReportsContext}
 
-Write the complete news report now:`;
+Write the complete news report now (under 700 words):`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
@@ -64,7 +69,13 @@ Write the complete news report now:`;
     max_completion_tokens: 2500,
   });
 
-  return response.choices[0].message.content || "";
+  const content = response.choices[0].message.content || "";
+  
+  if (!content || content.trim().length === 0) {
+    throw new Error("OpenAI returned an empty response");
+  }
+
+  return content;
 }
 
 export async function generateAudioFromText(

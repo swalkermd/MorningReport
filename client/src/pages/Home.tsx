@@ -11,14 +11,17 @@ import sunriseImage from "@assets/5AF2695B-E8B8-4B82-8643-ABA26156A923_176261679
 export default function Home() {
   const { data: report, isLoading, error } = useQuery<Report>({
     queryKey: ["/api/reports/latest"],
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    refetchInterval: (data) => (data ? false : 60000), // Refetch every minute if no data
   });
 
   return (
     <div className="h-screen w-full overflow-hidden">
       {/* Desktop Landscape Layout */}
-      <div className="hidden md:flex h-full">
+      <div className="hidden md:flex h-full overflow-hidden">
         {/* Left Panel - Sunrise Image */}
-        <div className="w-[45%] h-full relative overflow-hidden">
+        <div className="w-[45%] h-full relative flex-shrink-0 overflow-hidden">
           <img
             src={sunriseImage}
             alt="Morning sunrise cityscape"
@@ -27,27 +30,29 @@ export default function Home() {
         </div>
 
         {/* Right Panel - Controls & Report */}
-        <div className="flex-1 flex flex-col bg-background px-12 py-8">
+        <div className="flex-1 flex flex-col bg-background px-8 lg:px-12 py-6 lg:py-8 overflow-hidden">
           <Header report={report} />
           
-          <div className="flex-1 flex flex-col justify-center items-center min-h-0">
+          <div className="flex-1 flex flex-col justify-center items-center min-h-0 overflow-hidden">
             {isLoading ? (
               <LoadingState />
             ) : error ? (
               <ErrorState />
             ) : report ? (
-              <>
-                <AudioPlayer
-                  audioPath={report.audioPath}
-                  reportDate={report.date}
-                  data-testid="audio-player"
-                />
+              <div className="w-full max-w-2xl flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex-shrink-0">
+                  <AudioPlayer
+                    audioPath={report.audioPath}
+                    reportDate={report.date}
+                    data-testid="audio-player"
+                  />
+                </div>
                 <ReportDisplay
                   content={report.content}
-                  className="mt-8 flex-1 min-h-0"
+                  className="mt-6 lg:mt-8 flex-1 min-h-0"
                   data-testid="report-display"
                 />
-              </>
+              </div>
             ) : (
               <NoReportState />
             )}
@@ -56,9 +61,9 @@ export default function Home() {
       </div>
 
       {/* Mobile Portrait Layout */}
-      <div className="flex md:hidden flex-col h-full">
-        {/* Top - Sunrise Image (35% height) */}
-        <div className="h-[35%] relative overflow-hidden">
+      <div className="flex md:hidden flex-col h-full overflow-hidden">
+        {/* Top - Sunrise Image (30% height) */}
+        <div className="h-[30%] relative flex-shrink-0 overflow-hidden">
           <img
             src={sunriseImage}
             alt="Morning sunrise cityscape"
@@ -67,7 +72,7 @@ export default function Home() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex flex-col bg-background px-6 py-6 min-h-0">
+        <div className="flex-1 flex flex-col bg-background px-4 py-4 min-h-0 overflow-hidden">
           <Header report={report} isMobile />
           
           {isLoading ? (
@@ -75,8 +80,8 @@ export default function Home() {
           ) : error ? (
             <ErrorState />
           ) : report ? (
-            <>
-              <div className="flex-shrink-0 mb-6">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-shrink-0 mb-4">
                 <AudioPlayer
                   audioPath={report.audioPath}
                   reportDate={report.date}
@@ -88,7 +93,7 @@ export default function Home() {
                 className="flex-1 min-h-0"
                 data-testid="report-display-mobile"
               />
-            </>
+            </div>
           ) : (
             <NoReportState />
           )}
