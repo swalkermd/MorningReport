@@ -19,6 +19,96 @@ export const NEWS_TOPICS = [
 ];
 
 /**
+ * Fetches news from Brave Search API
+ * Primary search source with generous free tier (2,000 queries/month)
+ */
+async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Promise<NewsContent> {
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  
+  if (!apiKey) {
+    console.error(`[BraveSearch] API key not configured - skipping ${topic.name}`);
+    return { topic: topic.name, articles: [] };
+  }
+  
+  try {
+    const response = await fetch(
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(topic.query)}&count=5&freshness=pd`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X-Subscription-Token': apiKey,
+        },
+        signal: AbortSignal.timeout(10000)
+      }
+    );
+    
+    if (response.status === 429) {
+      console.warn(`[BraveSearch] Rate limit hit for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`[BraveSearch] Error for ${topic.name}:`, errorData);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.web?.results || data.web.results.length === 0) {
+      console.warn(`[BraveSearch] No results found for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    const validArticles = data.web.results
+      .filter((result: any) => {
+        const hasTitle = result.title && result.title.length > 10;
+        const hasDescription = result.description && result.description.length > 30;
+        const hasUrl = result.url;
+        return hasTitle && hasDescription && hasUrl;
+      })
+      .slice(0, 3)
+      .map((result: any) => {
+        // Normalize timestamp - Brave may return relative strings or ISO dates
+        let publishedAt = new Date().toISOString();
+        if (result.age) {
+          try {
+            const parsed = new Date(result.age);
+            if (!isNaN(parsed.getTime())) {
+              publishedAt = parsed.toISOString();
+            }
+          } catch {
+            // Keep default timestamp if parsing fails
+          }
+        }
+        
+        return {
+          title: result.title,
+          summary: result.description,
+          source: new URL(result.url).hostname.replace('www.', ''),
+          url: result.url,
+          publishedAt,
+        };
+      });
+    
+    if (validArticles.length === 0) {
+      console.warn(`[BraveSearch] No valid results after filtering for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    console.log(`[BraveSearch] Successfully fetched ${validArticles.length} results for ${topic.name}`);
+    return {
+      topic: topic.name,
+      articles: validArticles,
+    };
+    
+  } catch (error) {
+    console.error(`[BraveSearch] Error fetching ${topic.name}:`, error);
+    return { topic: topic.name, articles: [] };
+  }
+}
+
+/**
  * Fetches news from CurrentsAPI
  */
 async function scrapeNewsCurrentsAPI(topic: { name: string; query: string }): Promise<NewsContent> {
@@ -197,19 +287,27 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
 
 /**
  * Smart multi-source news scraping with intelligent fallback
- * Tries NewsAPI → CurrentsAPI in that order
+ * Tries Brave Search → NewsAPI → CurrentsAPI in that order
  */
 export async function scrapeNews(topic: { name: string; query: string }): Promise<NewsContent> {
   console.log(`\n[Multi-Source] Fetching news for: ${topic.name}`);
   
-  // Try NewsAPI first (free tier, but rate-limited)
+  // Try Brave Search first (primary source with generous free tier)
+  const braveResult = await scrapeNewsBraveSearch(topic);
+  if (braveResult.articles.length > 0) {
+    console.log(`[Multi-Source] ✓ ${topic.name} - Using Brave Search (${braveResult.articles.length} articles)`);
+    return braveResult;
+  }
+  
+  // Fallback to NewsAPI
+  console.log(`[Multi-Source] Brave Search failed for ${topic.name}, trying NewsAPI...`);
   const newsApiResult = await scrapeNewsFromNewsAPI(topic);
   if (newsApiResult.articles.length > 0) {
     console.log(`[Multi-Source] ✓ ${topic.name} - Using NewsAPI (${newsApiResult.articles.length} articles)`);
     return newsApiResult;
   }
   
-  // Fallback to CurrentsAPI (more generous rate limits)
+  // Final fallback to CurrentsAPI
   console.log(`[Multi-Source] NewsAPI failed for ${topic.name}, trying CurrentsAPI...`);
   const currentsResult = await scrapeNewsCurrentsAPI(topic);
   if (currentsResult.articles.length > 0) {
@@ -218,7 +316,7 @@ export async function scrapeNews(topic: { name: string; query: string }): Promis
   }
   
   // All sources failed
-  console.error(`[Multi-Source] ✗ ${topic.name} - All sources failed (NewsAPI + CurrentsAPI)`);
+  console.error(`[Multi-Source] ✗ ${topic.name} - All sources failed (Brave Search + NewsAPI + CurrentsAPI)`);
   return { topic: topic.name, articles: [] };
 }
 
