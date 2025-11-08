@@ -1,5 +1,7 @@
 import { NewsContent } from "./openai";
 import OpenAI from "openai";
+import { promises as fs } from "fs";
+import path from "path";
 
 // News topics configuration - refined for better search results
 export const NEWS_TOPICS = [
@@ -320,7 +322,93 @@ export async function scrapeNews(topic: { name: string; query: string }): Promis
   return { topic: topic.name, articles: [] };
 }
 
-export async function scrapeAllNews(): Promise<NewsContent[]> {
+const CACHE_DIR = path.join(process.cwd(), "cache");
+
+/**
+ * Get the cache file path for a given date
+ */
+function getCacheFilePath(date: Date = new Date()): string {
+  const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+  return path.join(CACHE_DIR, `news-${dateStr}.json`);
+}
+
+const MIN_TOPICS_FOR_CACHE = 5; // Require at least 5 topics for valid cache
+
+/**
+ * Read news data from cache for today
+ * Only returns cache if it has sufficient coverage (MIN_TOPICS_FOR_CACHE)
+ */
+async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | null> {
+  try {
+    const cacheFile = getCacheFilePath(date);
+    const data = await fs.readFile(cacheFile, 'utf-8');
+    const cached = JSON.parse(data);
+    
+    // Validate cache has minimum coverage
+    if (!Array.isArray(cached) || cached.length < MIN_TOPICS_FOR_CACHE) {
+      console.warn(`[Cache] ⚠ Cache has insufficient coverage (${cached?.length || 0}/${MIN_TOPICS_FOR_CACHE} topics) - fetching fresh data`);
+      return null;
+    }
+    
+    console.log(`[Cache] ✓ Loaded ${cached.length} topics from cache (${cacheFile})`);
+    return cached;
+  } catch (error) {
+    // Cache doesn't exist or is invalid
+    return null;
+  }
+}
+
+/**
+ * Write news data to cache
+ * Only saves if data has sufficient coverage (MIN_TOPICS_FOR_CACHE)
+ */
+async function writeNewsCache(data: NewsContent[], date: Date = new Date()): Promise<void> {
+  try {
+    // Don't cache insufficient data
+    if (!Array.isArray(data) || data.length < MIN_TOPICS_FOR_CACHE) {
+      console.warn(`[Cache] ⚠ Not caching insufficient data (${data?.length || 0}/${MIN_TOPICS_FOR_CACHE} topics) - will retry on next request`);
+      return;
+    }
+    
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    const cacheFile = getCacheFilePath(date);
+    await fs.writeFile(cacheFile, JSON.stringify(data, null, 2), 'utf-8');
+    console.log(`[Cache] ✓ Saved ${data.length} topics to cache (${cacheFile})`);
+  } catch (error) {
+    console.error('[Cache] Error writing cache:', error);
+  }
+}
+
+/**
+ * Clear news cache (useful for testing)
+ */
+export async function clearNewsCache(date?: Date): Promise<void> {
+  try {
+    const cacheFile = getCacheFilePath(date);
+    await fs.unlink(cacheFile);
+    console.log(`[Cache] ✓ Cleared cache (${cacheFile})`);
+  } catch (error) {
+    console.log('[Cache] No cache to clear or error:', error);
+  }
+}
+
+/**
+ * Fetches all news with intelligent caching
+ * - Checks cache first
+ * - If cache exists and not forced refresh, returns cached data
+ * - Otherwise fetches fresh data and saves to cache
+ * @param forceRefresh - If true, bypasses cache and fetches fresh data
+ */
+export async function scrapeAllNews(forceRefresh: boolean = false): Promise<NewsContent[]> {
+  // Check cache first unless forced refresh
+  if (!forceRefresh) {
+    const cached = await readNewsCache();
+    if (cached) {
+      console.log('[Cache] Using cached news data - no API calls made');
+      return cached;
+    }
+  }
+  
   const results: NewsContent[] = [];
   
   console.log(`\n${"=".repeat(60)}\n  STARTING MULTI-SOURCE NEWS AGGREGATION\n${"=".repeat(60)}`);
@@ -340,6 +428,9 @@ export async function scrapeAllNews(): Promise<NewsContent[]> {
   }
   
   console.log(`\n${"=".repeat(60)}\n  AGGREGATION COMPLETE: ${results.length}/${NEWS_TOPICS.length} topics successful\n${"=".repeat(60)}\n`);
+  
+  // Save to cache for future use
+  await writeNewsCache(results);
   
   return results;
 }

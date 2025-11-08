@@ -4,6 +4,9 @@ import { storage } from "./storage";
 import express from "express";
 import path from "path";
 import { startScheduler } from "./scheduler";
+import { clearNewsCache, scrapeAllNews } from "./newsService";
+import { generateDailyReport } from "./reportGenerator";
+import { promises as fs } from "fs";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Serve audio files
@@ -74,6 +77,86 @@ That's it for the morning report. Have a great day!`,
     } catch (error) {
       console.error("Error creating test report:", error);
       res.status(500).json({ error: "Failed to create test report" });
+    }
+  });
+
+  // Cache management endpoints (development only - for testing)
+  // These endpoints are restricted to development mode to prevent abuse
+  
+  // Middleware to restrict to development mode
+  const devOnly = (req: any, res: any, next: any) => {
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(403).json({ 
+        error: "This endpoint is only available in development mode" 
+      });
+    }
+    next();
+  };
+  
+  // Clear news cache
+  app.post("/api/cache/clear", devOnly, async (req, res) => {
+    try {
+      await clearNewsCache();
+      res.json({ success: true, message: "Cache cleared successfully" });
+    } catch (error) {
+      console.error("Error clearing cache:", error);
+      res.status(500).json({ error: "Failed to clear cache" });
+    }
+  });
+  
+  // Get cache status
+  app.get("/api/cache/status", devOnly, async (req, res) => {
+    try {
+      const cacheDir = path.join(process.cwd(), "cache");
+      const dateStr = new Date().toISOString().split('T')[0];
+      const cacheFile = path.join(cacheDir, `news-${dateStr}.json`);
+      
+      try {
+        const stats = await fs.stat(cacheFile);
+        const data = await fs.readFile(cacheFile, 'utf-8');
+        const cached = JSON.parse(data);
+        
+        res.json({
+          exists: true,
+          file: cacheFile,
+          size: stats.size,
+          topics: cached.length,
+          created: stats.mtime,
+        });
+      } catch {
+        res.json({ exists: false, file: cacheFile });
+      }
+    } catch (error) {
+      console.error("Error checking cache status:", error);
+      res.status(500).json({ error: "Failed to check cache status" });
+    }
+  });
+  
+  // Force regenerate report with fresh news data
+  app.post("/api/reports/regenerate", devOnly, async (req, res) => {
+    try {
+      const forceRefresh = req.query.forceRefresh === 'true';
+      
+      console.log(`[API] Regenerating report (forceRefresh: ${forceRefresh})...`);
+      
+      // Clear existing report for today if regenerating
+      const today = new Date();
+      today.setHours(6, 0, 0, 0);
+      
+      if (forceRefresh) {
+        await clearNewsCache();
+      }
+      
+      await generateDailyReport();
+      
+      res.json({ 
+        success: true, 
+        message: "Report regenerated successfully",
+        forceRefresh 
+      });
+    } catch (error) {
+      console.error("Error regenerating report:", error);
+      res.status(500).json({ error: "Failed to regenerate report" });
     }
   });
 
