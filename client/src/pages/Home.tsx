@@ -17,14 +17,25 @@ export default function Home() {
 
   return (
     <div className="h-screen w-full overflow-hidden flex flex-col bg-background">
-      {/* Image - Full width, aspect ratio preserved */}
-      <div className="w-full flex-shrink-0 flex items-center justify-center bg-muted p-4 md:p-8 border-b border-border">
-        <img
-          src={sunriseImage}
-          alt="Morning Report"
-          className="max-w-full max-h-[40vh] md:max-h-[45vh] object-contain"
-          data-testid="img-morning-report"
-        />
+      {/* Image with decorative framing */}
+      <div className="w-full flex-shrink-0 flex items-center justify-center bg-gradient-to-b from-primary/5 via-accent/10 to-background p-6 md:p-10 border-b-4 border-primary/20">
+        <div className="relative">
+          {/* Decorative corner accents */}
+          <div className="absolute -top-3 -left-3 w-6 h-6 border-l-4 border-t-4 border-primary/40 rounded-tl-lg"></div>
+          <div className="absolute -top-3 -right-3 w-6 h-6 border-r-4 border-t-4 border-primary/40 rounded-tr-lg"></div>
+          <div className="absolute -bottom-3 -left-3 w-6 h-6 border-l-4 border-b-4 border-primary/40 rounded-bl-lg"></div>
+          <div className="absolute -bottom-3 -right-3 w-6 h-6 border-r-4 border-b-4 border-primary/40 rounded-br-lg"></div>
+          
+          {/* Image container with shadow */}
+          <div className="bg-card/50 backdrop-blur-sm p-3 md:p-4 rounded-lg shadow-lg border border-primary/10">
+            <img
+              src={sunriseImage}
+              alt="Morning Report"
+              className="max-w-full max-h-[36vh] md:max-h-[40vh] object-contain rounded"
+              data-testid="img-morning-report"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Content Area */}
