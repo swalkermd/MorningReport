@@ -97,27 +97,8 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
 
   useEffect(() => {
     if (isPlaying && !isIntroPlaying && mainAudioRef.current && mainAudioRef.current.paused) {
-      mainAudioRef.current.volume = 0;
-      mainAudioRef.current.play().then(() => {
-        const fadeInSteps = 10;
-        const fadeInInterval = 50;
-        const targetVolume = 1;
-        const volumeIncrement = targetVolume / fadeInSteps;
-        
-        fadeIntervalRef.current = setInterval(() => {
-          if (mainAudioRef.current) {
-            if (mainAudioRef.current.volume < targetVolume - volumeIncrement) {
-              mainAudioRef.current.volume = Math.min(targetVolume, mainAudioRef.current.volume + volumeIncrement);
-            } else {
-              mainAudioRef.current.volume = targetVolume;
-              if (fadeIntervalRef.current) {
-                clearInterval(fadeIntervalRef.current);
-                fadeIntervalRef.current = null;
-              }
-            }
-          }
-        }, fadeInInterval);
-      }).catch(err => {
+      mainAudioRef.current.volume = 1;
+      mainAudioRef.current.play().catch(err => {
         console.error("Error auto-playing next segment:", err);
       });
     }
@@ -223,28 +204,11 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
           setIsIntroPlaying(false);
           if (!isPlaying) return;
           
-          main.volume = 0;
+          main.volume = 1;
           main.currentTime = 0;
           
           try {
             await main.play();
-            
-            const fadeInSteps = 10;
-            const fadeInInterval = 50;
-            const targetVolume = 1;
-            const volumeIncrement = targetVolume / fadeInSteps;
-            
-            fadeIntervalRef.current = setInterval(() => {
-              if (main.volume < targetVolume - volumeIncrement) {
-                main.volume = Math.min(targetVolume, main.volume + volumeIncrement);
-              } else {
-                main.volume = targetVolume;
-                if (fadeIntervalRef.current) {
-                  clearInterval(fadeIntervalRef.current);
-                  fadeIntervalRef.current = null;
-                }
-              }
-            }, fadeInInterval);
           } catch (err) {
             console.error("Error playing main audio:", err);
             setIsPlaying(false);
