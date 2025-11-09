@@ -17,9 +17,9 @@ export async function generateDailyReport(): Promise<void> {
   console.log(`Step 3: Found ${previousReports.length} previous reports for context`);
   console.log("Step 4: Generating AI news report...");
   
-  // Set to 6 AM on the current day
+  // Set to 5:30 AM on the current day
   const reportDate = new Date();
-  reportDate.setHours(6, 0, 0, 0);
+  reportDate.setHours(5, 30, 0, 0);
   
   let reportText = await generateNewsReport(newsContent, previousReportTexts, reportDate);
   

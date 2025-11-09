@@ -2,7 +2,7 @@
 
 ## Overview
 
-Morning Report is a web-based application that automatically generates and delivers a personalized daily audio news briefing. Each morning at 6:00 AM PST, the system scrapes news from trusted sources across curated topics (world news, US news, Redlands CA local, NBA, AI, EVs, autonomous driving, humanoid robots, eVTOL, gadgets, anti-aging, virtual medicine, travel), uses OpenAI GPT-4o to synthesize an intelligent ~1000 word report that avoids repeating previous content, includes a brief "On This Day in History" segment (1-2 sentences) near the end, converts it to natural-sounding speech via text-to-speech (split into multiple segments to handle OpenAI's 4096 character TTS limit), and presents it through a clean, audio-first web interface featuring a prominent play button (1.1x playback speed) and scrollable text report alongside a centered "Morning Report" branded image showing a coffee cup, laptop, and city skyline at sunrise, all within a gradient background (burnt orange to sky blue).
+Morning Report is a web-based application that automatically generates and delivers a personalized daily audio news briefing. Each morning at 5:30 AM PST, the system scrapes news from trusted sources across curated topics (world news, US news, Redlands CA local, NBA, AI, EVs, autonomous driving, humanoid robots, eVTOL, gadgets, anti-aging, virtual medicine, travel), uses OpenAI GPT-4o to synthesize an intelligent ~1000 word report that avoids repeating previous content, includes a brief "On This Day in History" segment (1-2 sentences) near the end, converts it to natural-sounding speech via text-to-speech (split into multiple segments to handle OpenAI's 4096 character TTS limit), and presents it through a clean, audio-first web interface featuring a prominent play button (1.1x playback speed) and scrollable text report alongside a centered "Morning Report" branded image showing a coffee cup, laptop, and city skyline at sunrise, all within a gradient background (burnt orange to sky blue).
 
 ## User Preferences
 
@@ -78,7 +78,7 @@ Preferred communication style: Simple, everyday language.
    - Saves reports with metadata (date, content, audio path) to storage
 
 4. **Scheduler** (`scheduler.ts`):
-   - Cron-based scheduling for 6:00 AM PST daily report generation
+   - Cron-based scheduling for 5:30 AM PST daily report generation
    - Timezone-aware using America/Los_Angeles
    - Auto-generates initial report on startup if none exists for today
 
@@ -149,7 +149,7 @@ Preferred communication style: Simple, everyday language.
   - `POST /api/reports/regenerate?forceRefresh=true` - Regenerate with/without fresh data
   - Protected by dev-only middleware (403 Forbidden in production)
 - **Workflow**: First scrape caches data → subsequent generations use cache → zero API calls after initial fetch
-- **Production Behavior**: Cache validates daily at 6:00 AM; if <5 topics, retries fresh scrape automatically
+- **Production Behavior**: Cache validates daily at 5:30 AM; if <5 topics, retries fresh scrape automatically
 
 **Database (Future):**
 - Neon Serverless PostgreSQL (configured but not yet active)
@@ -190,6 +190,6 @@ Preferred communication style: Simple, everyday language.
   - OpenAI costs: Daily TTS + GPT-4o generation
   
 - **Cron Scheduler:**
-  - Runs in-process at 6:00 AM PST daily
+  - Runs in-process at 5:30 AM PST daily
   - Timezone-aware (America/Los_Angeles)
   - Auto-generates on startup if no report exists for today

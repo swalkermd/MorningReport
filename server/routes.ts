@@ -19,7 +19,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!report) {
         return res.status(404).json({ 
-          error: "No report available yet. Check back at 6:00 AM PST for today's briefing." 
+          error: "No report available yet. Check back at 5:30 AM PST for today's briefing." 
         });
       }
       

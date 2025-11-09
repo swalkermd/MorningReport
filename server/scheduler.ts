@@ -3,12 +3,12 @@ import { generateDailyReport } from "./reportGenerator";
 import { storage } from "./storage";
 
 export function startScheduler() {
-  // Schedule daily report generation at 6:00 AM PST
+  // Schedule daily report generation at 5:30 AM PST
   // Cron format: minute hour day month weekday
-  // PST is UTC-8, so 6:00 AM PST = 14:00 UTC (during standard time)
+  // PST is UTC-8, so 5:30 AM PST = 13:30 UTC (during standard time)
   // Note: Adjust for daylight saving time if needed
   
-  const cronExpression = "0 14 * * *"; // 6:00 AM PST (14:00 UTC)
+  const cronExpression = "30 13 * * *"; // 5:30 AM PST (13:30 UTC)
   
   cron.schedule(cronExpression, async () => {
     console.log(`[${new Date().toISOString()}] Starting scheduled daily report generation...`);
@@ -23,7 +23,7 @@ export function startScheduler() {
     timezone: "America/Los_Angeles"
   });
   
-  console.log("Report scheduler started - will generate reports daily at 6:00 AM PST");
+  console.log("Report scheduler started - will generate reports daily at 5:30 AM PST");
   
   // Also generate a report on startup if there isn't one for today (for testing)
   setTimeout(async () => {
