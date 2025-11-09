@@ -335,12 +335,40 @@ function getCacheFilePath(date: Date = new Date()): string {
 const MIN_TOPICS_FOR_CACHE = 5; // Require at least 5 topics for valid cache
 
 /**
- * Read news data from cache for today
+ * Read news data from cache
+ * In development mode, will use the most recent cache file regardless of date
+ * In production, only returns cache for the specified date
  * Only returns cache if it has sufficient coverage (MIN_TOPICS_FOR_CACHE)
  */
 async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | null> {
   try {
-    const cacheFile = getCacheFilePath(date);
+    let cacheFile = getCacheFilePath(date);
+    
+    // In development mode, if today's cache doesn't exist, use the most recent cache
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        await fs.access(cacheFile);
+      } catch {
+        // Today's cache doesn't exist, find the most recent cache file
+        console.log(`[Cache] Today's cache not found, looking for most recent cache...`);
+        try {
+          const files = await fs.readdir(CACHE_DIR);
+          const cacheFiles = files
+            .filter(f => f.startsWith('news-') && f.endsWith('.json'))
+            .sort()
+            .reverse();
+          
+          if (cacheFiles.length > 0) {
+            cacheFile = path.join(CACHE_DIR, cacheFiles[0]);
+            console.log(`[Cache] Using most recent cache: ${cacheFiles[0]}`);
+          }
+        } catch {
+          // No cache directory or files
+          return null;
+        }
+      }
+    }
+    
     const data = await fs.readFile(cacheFile, 'utf-8');
     const cached = JSON.parse(data);
     
