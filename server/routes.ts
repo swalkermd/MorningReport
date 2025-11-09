@@ -42,8 +42,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test endpoint to create a sample report (for development/testing)
-  app.post("/api/reports/test", async (req, res) => {
+  // Development-only endpoints
+  // These endpoints are restricted to development mode to prevent abuse in production
+  
+  // Middleware to restrict to development mode
+  const devOnly = (req: any, res: any, next: any) => {
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(403).json({ 
+        error: "This endpoint is only available in development mode" 
+      });
+    }
+    next();
+  };
+
+  // Test endpoint to create a sample report (development only)
+  app.post("/api/reports/test", devOnly, async (req, res) => {
     try {
       const testReport = {
         id: crypto.randomUUID(),
@@ -79,19 +92,6 @@ That's it for the morning report. Have a great day!`,
       res.status(500).json({ error: "Failed to create test report" });
     }
   });
-
-  // Cache management endpoints (development only - for testing)
-  // These endpoints are restricted to development mode to prevent abuse
-  
-  // Middleware to restrict to development mode
-  const devOnly = (req: any, res: any, next: any) => {
-    if (process.env.NODE_ENV !== 'development') {
-      return res.status(403).json({ 
-        error: "This endpoint is only available in development mode" 
-      });
-    }
-    next();
-  };
   
   // Clear news cache
   app.post("/api/cache/clear", devOnly, async (req, res) => {

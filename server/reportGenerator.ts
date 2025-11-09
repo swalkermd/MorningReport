@@ -2,6 +2,7 @@ import path from "path";
 import { storage } from "./storage";
 import { scrapeAllNews } from "./newsService";
 import { generateNewsReport, generateAudioFromText } from "./openai";
+import { promises as fs } from "fs";
 
 export async function generateDailyReport(): Promise<void> {
   console.log("Step 1: Scraping news from all sources...");
@@ -56,4 +57,40 @@ export async function generateDailyReport(): Promise<void> {
   });
   
   console.log("Report generation complete!");
+  
+  // Clean up old audio files (keep last 30 days)
+  await cleanupOldAudioFiles();
+}
+
+/**
+ * Cleanup old audio files to prevent unlimited disk usage
+ * Keeps files from the last 30 days, deletes older ones
+ */
+async function cleanupOldAudioFiles(): Promise<void> {
+  const audioDir = path.join(process.cwd(), "audio-reports");
+  const RETENTION_DAYS = 30;
+  const cutoffTime = Date.now() - (RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  
+  try {
+    const files = await fs.readdir(audioDir);
+    let deletedCount = 0;
+    
+    for (const file of files) {
+      if (!file.endsWith('.mp3')) continue;
+      
+      const filePath = path.join(audioDir, file);
+      const stats = await fs.stat(filePath);
+      
+      if (stats.mtimeMs < cutoffTime) {
+        await fs.unlink(filePath);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      console.log(`[Cleanup] Deleted ${deletedCount} audio file(s) older than ${RETENTION_DAYS} days`);
+    }
+  } catch (error) {
+    console.error("[Cleanup] Error cleaning up audio files:", error);
+  }
 }

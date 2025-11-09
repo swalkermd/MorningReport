@@ -168,8 +168,28 @@ Preferred communication style: Simple, everyday language.
 - Replit-specific plugins for development banner, error overlay, and cartographer (source mapping)
 - Vite HMR for fast development feedback
 
-**Production Considerations:**
-- Audio files stored locally; consider cloud storage (GCS/S3) for scalability
-- In-memory storage will lose data on restart; activate PostgreSQL for persistence
-- Cron scheduler runs in-process; consider external scheduler (GitHub Actions, Cloud Scheduler) for reliability
-- OpenAI API rate limits and costs should be monitored for daily generation
+**Production Configuration:**
+- **Environment Variables Required:**
+  - `NODE_ENV=production` - CRITICAL: Must be set to enable production security (locks dev-only endpoints)
+  - All API keys (OPENAI_API_KEY, BRAVE_SEARCH_API_KEY, NEWSAPI_KEY, CURRENTS_API_KEY)
+  - Session secret (SESSION_SECRET)
+  
+- **Storage & Files:**
+  - Reports persisted to `/data/reports.json` (file-based storage, survives restarts)
+  - Audio files in `/audio-reports/` with automatic 30-day retention cleanup
+  - News cache in `/cache/` (development mode only, not used in production)
+  
+- **Security:**
+  - Dev-only endpoints (/api/reports/test, /api/cache/*, /api/reports/regenerate) locked behind NODE_ENV check
+  - Returns 403 Forbidden if accessed in production
+  
+- **Monitoring:**
+  - Daily API usage: ~26 calls/day (13 topics × 2 sources) = ~800/month
+  - Brave Search free tier: 2,000/month (ample headroom)
+  - NewsAPI free tier: 100/day (ample headroom)
+  - OpenAI costs: Daily TTS + GPT-4o generation
+  
+- **Cron Scheduler:**
+  - Runs in-process at 6:00 AM PST daily
+  - Timezone-aware (America/Los_Angeles)
+  - Auto-generates on startup if no report exists for today
