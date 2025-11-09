@@ -493,7 +493,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   }
 
   return (
-    <div className="w-full space-y-2">
+    <div className="w-full space-y-4">
       <Button
         className="w-full h-12 gap-3 text-base border-2 border-[#8B4513]"
         variant="default"
