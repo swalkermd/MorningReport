@@ -114,15 +114,20 @@ Preferred communication style: Simple, everyday language.
 - Requires OPENAI_API_KEY environment variable
 
 **News Data Sources:**
-- **Multi-source aggregation with intelligent three-tier fallback** (November 2025):
-  - **Primary**: Brave Search API (https://brave.com/search/api/) - Generous free tier (2,000 queries/month)
-  - **Secondary**: NewsAPI (https://newsapi.org) - Free tier with daily rate limits
-  - **Tertiary**: CurrentsAPI (https://currentsapi.services) - Free tier with daily quota limits
-  - **Fallback strategy**: Tries Brave Search first for each topic; if rate-limited or fails, falls back to NewsAPI, then CurrentsAPI
-  - **Production fit**: With once-daily generation (13 queries/day = ~400/month), Brave Search free tier provides ample headroom
+- **Dual-source parallel aggregation with intelligent merging** (November 2025):
+  - **Primary Sources (called in parallel)**: 
+    - Brave Search API (https://brave.com/search/api/) - Generous free tier (2,000 queries/month)
+    - NewsAPI (https://newsapi.org) - Free tier with daily rate limits
+  - **Backup Source**: CurrentsAPI (https://currentsapi.services) - Only used if both primary sources fail
+  - **Smart Merging Strategy**:
+    - Calls both Brave Search and NewsAPI simultaneously for maximum coverage
+    - Deduplicates articles by URL and title similarity
+    - Prioritizes NewsAPI articles (better timestamps), adds unique Brave articles
+    - Sorts by recency (newest first)
+    - Limits to top 4 articles per topic for quality
+  - **Production fit**: With once-daily generation (26 API calls/day: 13 topics × 2 sources = ~800/month), both free tiers provide ample headroom
 - Requires BRAVE_SEARCH_API_KEY, NEWSAPI_KEY, and CURRENTS_API_KEY environment variables
-- Brave Search provides comprehensive web search results that OpenAI GPT-4o analyzes to select the most notable stories
-- Target sources include major news outlets: Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, and thousands more
+- Combined sources provide comprehensive coverage from major news outlets: Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, and thousands more
 
 **News Caching System** (November 2025):
 - **Purpose**: Enables iterative testing of report generation/TTS without repeatedly hitting API rate limits

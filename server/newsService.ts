@@ -288,32 +288,92 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
 }
 
 /**
- * Smart multi-source news scraping with intelligent fallback
- * Tries Brave Search → NewsAPI → CurrentsAPI in that order
+ * Normalize article title for comparison (lowercase, remove punctuation/whitespace)
+ */
+function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Check if two articles are duplicates based on title similarity
+ */
+function isDuplicate(article1: any, article2: any): boolean {
+  // Check URL match first (most reliable)
+  if (article1.url && article2.url && article1.url === article2.url) {
+    return true;
+  }
+  
+  // Check title similarity (handle minor variations)
+  const title1 = normalizeTitle(article1.title);
+  const title2 = normalizeTitle(article2.title);
+  
+  // Exact match
+  if (title1 === title2) {
+    return true;
+  }
+  
+  // Check if one title contains the other (handles truncated headlines)
+  if (title1.length > 20 && title2.length > 20) {
+    const shorter = title1.length < title2.length ? title1 : title2;
+    const longer = title1.length < title2.length ? title2 : title1;
+    if (longer.includes(shorter)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Smart multi-source news scraping with dual primary sources
+ * Calls BOTH Brave Search AND NewsAPI in parallel, then intelligently merges results
+ * Features: deduplication, quality filtering, and recency sorting
+ * Falls back to CurrentsAPI only if both primary sources fail
  */
 export async function scrapeNews(topic: { name: string; query: string }): Promise<NewsContent> {
   console.log(`\n[Multi-Source] Fetching news for: ${topic.name}`);
   
-  // Try Brave Search first (primary source with generous free tier)
-  const braveResult = await scrapeNewsBraveSearch(topic);
-  if (braveResult.articles.length > 0) {
-    console.log(`[Multi-Source] ✓ ${topic.name} - Using Brave Search (${braveResult.articles.length} articles)`);
-    return braveResult;
+  // Call BOTH Brave Search AND NewsAPI in parallel for maximum coverage
+  const [braveResult, newsApiResult] = await Promise.all([
+    scrapeNewsBraveSearch(topic),
+    scrapeNewsFromNewsAPI(topic)
+  ]);
+  
+  // Start with NewsAPI articles (typically higher quality with better timestamps)
+  const mergedArticles: any[] = [...newsApiResult.articles];
+  
+  // Add Brave Search articles that aren't duplicates
+  for (const braveArticle of braveResult.articles) {
+    const isDupe = mergedArticles.some(existing => isDuplicate(existing, braveArticle));
+    if (!isDupe) {
+      mergedArticles.push(braveArticle);
+    }
   }
   
-  // Fallback to NewsAPI
-  console.log(`[Multi-Source] Brave Search failed for ${topic.name}, trying NewsAPI...`);
-  const newsApiResult = await scrapeNewsFromNewsAPI(topic);
-  if (newsApiResult.articles.length > 0) {
-    console.log(`[Multi-Source] ✓ ${topic.name} - Using NewsAPI (${newsApiResult.articles.length} articles)`);
-    return newsApiResult;
+  if (mergedArticles.length > 0) {
+    // Sort by recency (most recent first) - prioritize articles with valid timestamps
+    const sortedArticles = mergedArticles.sort((a, b) => {
+      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return dateB - dateA; // Descending (newest first)
+    });
+    
+    // Limit to top 4 articles per topic to maintain quality
+    const topArticles = sortedArticles.slice(0, 4);
+    
+    console.log(`[Multi-Source] ✓ ${topic.name} - Merged Brave (${braveResult.articles.length}) + NewsAPI (${newsApiResult.articles.length}) → ${mergedArticles.length} unique → top ${topArticles.length} selected`);
+    
+    return {
+      topic: topic.name,
+      articles: topArticles
+    };
   }
   
-  // Final fallback to CurrentsAPI
-  console.log(`[Multi-Source] NewsAPI failed for ${topic.name}, trying CurrentsAPI...`);
+  // Both primary sources failed - fall back to CurrentsAPI
+  console.log(`[Multi-Source] Both primary sources failed for ${topic.name}, trying CurrentsAPI backup...`);
   const currentsResult = await scrapeNewsCurrentsAPI(topic);
   if (currentsResult.articles.length > 0) {
-    console.log(`[Multi-Source] ✓ ${topic.name} - Using CurrentsAPI (${currentsResult.articles.length} articles)`);
+    console.log(`[Multi-Source] ✓ ${topic.name} - Using CurrentsAPI backup (${currentsResult.articles.length} articles)`);
     return currentsResult;
   }
   
