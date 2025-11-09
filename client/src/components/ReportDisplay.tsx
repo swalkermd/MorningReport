@@ -24,30 +24,25 @@ export function ReportDisplay({ content, className = "", "data-testid": testId }
 
   return (
     <Card className={`flex-1 min-h-0 flex flex-col border-card-border relative ${className}`} data-testid={testId}>
-      <div className="absolute top-3 right-3 z-10">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 pb-2 border-b border-card-border">
+        <h3 className="font-semibold text-base">Report Text</h3>
         <Button
-          size="sm"
+          size="icon"
           variant="ghost"
           onClick={handleCopy}
-          className="gap-2"
           data-testid="button-copy-report"
+          title={copied ? "Copied!" : "Copy to clipboard"}
         >
           {copied ? (
-            <>
-              <Check className="h-4 w-4" />
-              Copied
-            </>
+            <Check className="h-4 w-4" />
           ) : (
-            <>
-              <Copy className="h-4 w-4" />
-              Copy
-            </>
+            <Copy className="h-4 w-4" />
           )}
         </Button>
-      </div>
+      </CardHeader>
       <CardContent className="p-4 md:p-6 flex-1 overflow-y-auto">
         <div 
-          className="prose prose-sm max-w-none text-foreground leading-7 pr-20"
+          className="prose prose-sm max-w-none text-foreground leading-7"
           data-testid="text-report-content"
         >
           {content.split('\n\n').map((paragraph, index) => (
