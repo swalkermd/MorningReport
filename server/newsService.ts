@@ -3,19 +3,25 @@ import OpenAI from "openai";
 import { promises as fs } from "fs";
 import path from "path";
 
-// MediaStack daily usage tracking
-const MEDIASTACK_USAGE_FILE = path.join(process.cwd(), 'data', 'mediastack-usage.json');
-const MEDIASTACK_DAILY_LIMIT = 3;
+// API usage tracking system for backup sources
+const USAGE_TRACKING_DIR = path.join(process.cwd(), 'data');
+const MEDIASTACK_USAGE_FILE = path.join(USAGE_TRACKING_DIR, 'mediastack-usage.json');
+const CURRENTS_USAGE_FILE = path.join(USAGE_TRACKING_DIR, 'currents-usage.json');
 
-interface MediaStackUsage {
+// Rate limits
+const MEDIASTACK_DAILY_LIMIT = 3;
+const CURRENTS_DAILY_MINIMUM = 1; // Sample at least 1 call/day
+const CURRENTS_MONTHLY_LIMIT = 600; // Free tier limit
+
+interface ApiUsage {
   date: string;
   count: number;
 }
 
-async function getMediaStackUsageToday(): Promise<number> {
+async function getApiUsageToday(usageFile: string): Promise<number> {
   try {
-    const data = await fs.readFile(MEDIASTACK_USAGE_FILE, 'utf-8');
-    const usage: MediaStackUsage = JSON.parse(data);
+    const data = await fs.readFile(usageFile, 'utf-8');
+    const usage: ApiUsage = JSON.parse(data);
     const today = new Date().toISOString().split('T')[0];
     
     if (usage.date === today) {
@@ -27,22 +33,44 @@ async function getMediaStackUsageToday(): Promise<number> {
   }
 }
 
-async function incrementMediaStackUsage(): Promise<void> {
+async function incrementApiUsage(usageFile: string, apiName: string, dailyLimit?: number): Promise<void> {
   const today = new Date().toISOString().split('T')[0];
-  const currentCount = await getMediaStackUsageToday();
+  const currentCount = await getApiUsageToday(usageFile);
   
-  const usage: MediaStackUsage = {
+  const usage: ApiUsage = {
     date: today,
     count: currentCount + 1
   };
   
   try {
-    await fs.mkdir(path.dirname(MEDIASTACK_USAGE_FILE), { recursive: true });
-    await fs.writeFile(MEDIASTACK_USAGE_FILE, JSON.stringify(usage, null, 2));
-    console.log(`[MediaStack] Usage: ${usage.count}/${MEDIASTACK_DAILY_LIMIT} calls today`);
+    await fs.mkdir(path.dirname(usageFile), { recursive: true });
+    await fs.writeFile(usageFile, JSON.stringify(usage, null, 2));
+    
+    if (dailyLimit) {
+      console.log(`[${apiName}] Usage: ${usage.count}/${dailyLimit} calls today`);
+    } else {
+      console.log(`[${apiName}] Usage: ${usage.count} calls today`);
+    }
   } catch (error) {
-    console.error('[MediaStack] Failed to update usage tracking:', error);
+    console.error(`[${apiName}] Failed to update usage tracking:`, error);
   }
+}
+
+// Convenience wrappers
+async function getMediaStackUsageToday(): Promise<number> {
+  return getApiUsageToday(MEDIASTACK_USAGE_FILE);
+}
+
+async function incrementMediaStackUsage(): Promise<void> {
+  return incrementApiUsage(MEDIASTACK_USAGE_FILE, 'MediaStack', MEDIASTACK_DAILY_LIMIT);
+}
+
+async function getCurrentsUsageToday(): Promise<number> {
+  return getApiUsageToday(CURRENTS_USAGE_FILE);
+}
+
+async function incrementCurrentsUsage(): Promise<void> {
+  return incrementApiUsage(CURRENTS_USAGE_FILE, 'CurrentsAPI');
 }
 
 // Topic freshness tiers
@@ -319,6 +347,9 @@ async function scrapeNewsCurrentsAPI(topic: { name: string; query: string; fresh
       { signal: AbortSignal.timeout(30000) }
     );
     
+    // Increment usage counter after successful API call
+    await incrementCurrentsUsage();
+    
     if (response.status === 429) {
       console.warn(`[CurrentsAPI] Rate limit hit for ${topic.name}`);
       return { topic: topic.name, articles: [] };
@@ -550,87 +581,104 @@ function isDuplicate(article1: any, article2: any): boolean {
 }
 
 /**
- * Smart multi-source news scraping with dual primary sources
- * Calls BOTH Brave Search AND NewsAPI in parallel, then intelligently merges results
- * Features: deduplication, quality filtering, and recency sorting
- * Falls back to CurrentsAPI only if both primary sources fail
+ * Parallel sampling strategy - calls ALL 4 sources and intelligently merges results
+ * 
+ * Strategy:
+ * - Always calls Brave Search + NewsAPI (primary sources)
+ * - Calls CurrentsAPI if under budget (minimum 1/day for data sampling)
+ * - Calls MediaStack if under daily limit (maximum 3/day)
+ * - Merges all results with deduplication
+ * - Ensures backup sources get sampled daily for quality assessment
  */
 export async function scrapeNews(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
-  console.log(`\n[Multi-Source] Fetching news for: ${topic.name}`);
+  console.log(`\n[Parallel Sampling] Fetching news for: ${topic.name}`);
   
-  // Call BOTH Brave Search AND NewsAPI in parallel for maximum coverage
-  const [braveResult, newsApiResult] = await Promise.all([
+  // Check backup source usage
+  const currentsUsage = await getCurrentsUsageToday();
+  const mediastackUsage = await getMediaStackUsageToday();
+  
+  // Determine which sources to call based on rate limits
+  const callCurrents = currentsUsage < 20; // Conservative daily budget (600/month = ~20/day)
+  const callMediaStack = mediastackUsage < MEDIASTACK_DAILY_LIMIT;
+  
+  console.log(`[Parallel Sampling] Rate limits - CurrentsAPI: ${currentsUsage}/20, MediaStack: ${mediastackUsage}/${MEDIASTACK_DAILY_LIMIT}`);
+  
+  // Build list of API calls to make in parallel
+  const apiCalls: Promise<NewsContent>[] = [
     scrapeNewsBraveSearch(topic),
     scrapeNewsFromNewsAPI(topic)
-  ]);
+  ];
   
-  // Start with NewsAPI articles (typically higher quality with better timestamps)
-  const mergedArticles: any[] = [...newsApiResult.articles];
-  
-  // Add Brave Search articles that aren't duplicates
-  for (const braveArticle of braveResult.articles) {
-    const isDupe = mergedArticles.some(existing => isDuplicate(existing, braveArticle));
-    if (!isDupe) {
-      mergedArticles.push(braveArticle);
-    }
+  // Add backup sources if within limits
+  if (callCurrents) {
+    apiCalls.push(scrapeNewsCurrentsAPI(topic));
+  }
+  if (callMediaStack) {
+    apiCalls.push(scrapeNewsMediaStack(topic));
   }
   
-  if (mergedArticles.length > 0) {
-    // Filter out stale articles based on topic's freshness tier
-    const freshArticles = mergedArticles.filter(article => isArticleFresh(article, topic.freshness));
+  // Call ALL sources in parallel for maximum data coverage
+  const results = await Promise.all(apiCalls);
+  
+  // Extract source names for logging
+  const sourceNames = ['Brave', 'NewsAPI'];
+  if (callCurrents) sourceNames.push('Currents');
+  if (callMediaStack) sourceNames.push('MediaStack');
+  
+  // Merge all results with intelligent deduplication
+  const mergedArticles: any[] = [];
+  const sourceContributions: { [key: string]: number } = {};
+  
+  results.forEach((result, idx) => {
+    const sourceName = sourceNames[idx];
+    let addedCount = 0;
     
-    if (freshArticles.length === 0) {
-      console.warn(`[Multi-Source] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered out as stale (>${topic.freshness}h old)`);
-      // Fall back to CurrentsAPI
-      const currentsResult = await scrapeNewsCurrentsAPI(topic);
-      if (currentsResult.articles.length > 0) {
-        const freshCurrentsArticles = currentsResult.articles.filter(article => isArticleFresh(article, topic.freshness));
-        if (freshCurrentsArticles.length > 0) {
-          console.log(`[Multi-Source] ✓ ${topic.name} - Using CurrentsAPI backup (${freshCurrentsArticles.length} fresh articles)`);
-          return { topic: topic.name, articles: freshCurrentsArticles.slice(0, 4) };
-        }
+    for (const article of result.articles) {
+      const isDupe = mergedArticles.some(existing => isDuplicate(existing, article));
+      if (!isDupe) {
+        mergedArticles.push(article);
+        addedCount++;
       }
-      return { topic: topic.name, articles: [] };
     }
     
-    // Sort by recency (most recent first) - prioritize articles with valid timestamps
-    const sortedArticles = freshArticles.sort((a, b) => {
-      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-      return dateB - dateA; // Descending (newest first)
-    });
-    
-    // Limit to top 4 articles per topic to maintain quality
-    const topArticles = sortedArticles.slice(0, 4);
-    
-    console.log(`[Multi-Source] ✓ ${topic.name} - Merged Brave (${braveResult.articles.length}) + NewsAPI (${newsApiResult.articles.length}) → ${mergedArticles.length} unique → ${freshArticles.length} fresh → top ${topArticles.length} selected`);
-    
-    return {
-      topic: topic.name,
-      articles: topArticles
-    };
+    sourceContributions[sourceName] = addedCount;
+  });
+  
+  // Log source contributions
+  const contributionLog = Object.entries(sourceContributions)
+    .map(([source, count]) => `${source}:${count}`)
+    .join(', ');
+  console.log(`[Parallel Sampling] Source contributions - ${contributionLog} → ${mergedArticles.length} unique articles`);
+  
+  if (mergedArticles.length === 0) {
+    console.error(`[Parallel Sampling] ✗ ${topic.name} - No articles from any source`);
+    return { topic: topic.name, articles: [] };
   }
   
-  // Both primary sources failed - fall back to CurrentsAPI
-  console.log(`[Multi-Source] Both primary sources failed for ${topic.name}, trying CurrentsAPI backup...`);
-  const currentsResult = await scrapeNewsCurrentsAPI(topic);
-  if (currentsResult.articles.length > 0) {
-    console.log(`[Multi-Source] ✓ ${topic.name} - Using CurrentsAPI backup (${currentsResult.articles.length} articles)`);
-    return currentsResult;
+  // Filter out stale articles based on topic's freshness tier
+  const freshArticles = mergedArticles.filter(article => isArticleFresh(article, topic.freshness));
+  
+  if (freshArticles.length === 0) {
+    console.warn(`[Parallel Sampling] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered as stale (>${topic.freshness}h)`);
+    return { topic: topic.name, articles: [] };
   }
   
-  // If all 3 sources failed, try MediaStack as 4th fallback (with daily limit)
-  console.log(`[Multi-Source] All 3 sources failed for ${topic.name}, trying MediaStack (4th fallback)...`);
-  const mediastackResult = await scrapeNewsMediaStack(topic);
+  // Sort by recency (most recent first)
+  const sortedArticles = freshArticles.sort((a, b) => {
+    const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    return dateB - dateA; // Descending (newest first)
+  });
   
-  if (mediastackResult.articles.length > 0) {
-    console.log(`[Multi-Source] ✓ ${topic.name} - Using MediaStack backup (${mediastackResult.articles.length} articles)`);
-    return mediastackResult;
-  }
+  // Limit to top 4 articles per topic to maintain quality
+  const topArticles = sortedArticles.slice(0, 4);
   
-  // All 4 sources failed
-  console.error(`[Multi-Source] ✗ ${topic.name} - All 4 sources failed (Brave + NewsAPI + Currents + MediaStack)`);
-  return { topic: topic.name, articles: [] };
+  console.log(`[Parallel Sampling] ✓ ${topic.name} - ${mergedArticles.length} unique → ${freshArticles.length} fresh → top ${topArticles.length} selected`);
+  
+  return {
+    topic: topic.name,
+    articles: topArticles
+  };
 }
 
 const CACHE_DIR = path.join(process.cwd(), "cache");
