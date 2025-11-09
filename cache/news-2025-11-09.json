@@ -7,21 +7,47 @@
         "summary": "USA TODAY delivers current national and local news, sports, entertainment, finance, technology, and more through award-winning journalism, photos, and videos.",
         "source": "usatoday.com",
         "url": "https://www.usatoday.com/",
-        "publishedAt": "2025-11-09T14:14:31.498Z"
+        "publishedAt": "2025-11-09T16:56:23.972Z"
+      },
+      {
+        "title": "Fung-wong: Super typhoon hits Philippines as nearly a million evacuate",
+        "summary": "&quot;We decided to evacuate because the recent typhoon brought floods in our area, and now I just want to keep my family safe,&quot; Norlito Dugan told the AFP news agency. He is among those who have taken shelter in a church in the city of Sorsogon in Luzon. Another resident, Maxine Dugan said: &quot;I&#x27;m here because the waves near my house are now huge.&quot; How do hurricanes or typhoons form and are they getting stronger? The Philippines - located near the area where Pacific Ocean tropical weather systems form - is one of the most vulnerable countries in the world to cyclones.",
+        "source": "bbc.com",
+        "url": "https://www.bbc.com/news/articles/cq509yj82y8o",
+        "publishedAt": "2025-11-09T16:06:23.972Z"
       },
       {
         "title": "World News Today Updates & Daily Headlines | Fox News",
         "summary": "Explore the international news happening around the world today. Discover daily world headlines and the breaking events that are happening in the world each day with Fox News.",
         "source": "foxnews.com",
         "url": "https://www.foxnews.com/world",
-        "publishedAt": "2025-11-09T11:38:31.498Z"
+        "publishedAt": "2025-11-09T12:06:23.972Z"
+      }
+    ]
+  },
+  {
+    "topic": "Redlands CA Local News",
+    "articles": [
+      {
+        "title": "What do Southern California GOP leaders think about Nick Fuentes? – Redlands Daily Facts",
+        "summary": "100 years ago in Redlands: <strong>University of Redlands freshman dies after brief bout of polio</strong> · Del Mar consensus picks for Saturday, Nov. 8, 2025 · Where to find 2025 Veterans Day events in the Inland Empire · What’s open and closed on Veterans ...",
+        "source": "redlandsdailyfacts.com",
+        "url": "https://www.redlandsdailyfacts.com/2025/11/09/what-do-southern-california-gop-leaders-think-about-nick-fuentes/",
+        "publishedAt": "2025-11-09T15:06:25.102Z"
       },
       {
-        "title": "World News: Breaking international headlines and latest updates",
-        "summary": "World 4 hours ago By Herbie Russell · <strong>Dismembered bodies of crypto millionaire and wife found buried in Dubai desert</strong> · Putin &#x27;falls out with one of his greatest allies&#x27; after phone call · Putin&#x27;s £960,000,000 &#x27;Triumf&#x27; weapon blown up in ...",
-        "source": "metro.co.uk",
-        "url": "https://metro.co.uk/news/world/",
-        "publishedAt": "2025-11-08T18:38:31.498Z"
+        "title": "Photos: Check out the action from Friday’s high school football playoffs – Redlands Daily Facts",
+        "summary": "President Trump alleges California’s election system is ‘rigged’ as voters decide Proposition 50 · How Redlands will support residents who struggle with food insecurity",
+        "source": "redlandsdailyfacts.com",
+        "url": "https://www.redlandsdailyfacts.com/2025/11/07/photos-check-out-fridays-action-in-the-high-school-football-playoffs/",
+        "publishedAt": "2025-11-08T17:06:25.102Z"
+      },
+      {
+        "title": "High school football: Early look at the scores from Friday’s playoff games – Redlands Daily Facts",
+        "summary": "<strong>High-profile killer of Redlands teen granted release from prison</strong> · Flight cancellations expected to begin at Ontario airport Friday · Riverside National Cemetery cancels flag-placing event, Veterans Day ceremony · San Bernardino County ...",
+        "source": "redlandsdailyfacts.com",
+        "url": "https://www.redlandsdailyfacts.com/2025/11/07/high-school-football-early-look-at-the-scores-from-fridays-playoff-games-2/",
+        "publishedAt": "2025-11-08T17:06:25.102Z"
       }
     ]
   },
@@ -33,27 +59,34 @@
         "summary": "... <strong>Apple is set to revolutionize Siri by partnering with Google to use their groundbreaking Gemini AI</strong>, ... ... The 2025 U.S. government shutdown, now the longest in history, continues to affect millions of feder...",
         "source": "opentools.ai",
         "url": "https://opentools.ai/news",
-        "publishedAt": "2025-11-08T21:38:33.837Z"
+        "publishedAt": "2025-11-08T21:06:26.180Z"
       },
       {
         "title": "Artificial Intelligence News -- ScienceDaily",
         "summary": "21, 2025  Researchers at UNSW have found a way to make atomic nuclei communicate through electrons, allowing them to achieve entanglement at scales used in today’s computer chips. This breakthrough brings scalable, silicon-based quantum computing much ... AI Has No Idea What It’s Doing, but It’s Threatening Us All · Sep. 7, 2025  Artificial intelligence is reshaping law, ethics, and society at a speed that threatens fundamental human dignity.",
         "source": "sciencedaily.com",
         "url": "https://www.sciencedaily.com/news/computers_math/artificial_intelligence/",
-        "publishedAt": "2025-11-08T14:38:33.837Z"
+        "publishedAt": "2025-11-08T17:06:26.180Z"
       },
       {
         "title": "AI News November 8 2025: 24 Breaking OpenAI & Gemini Updates",
         "summary": "<strong>The stack ties NVIDIA GB200 and GB300 GPUs via EC2 UltraServers, optimized for distributed training and low-latency serving</strong>. The intention is to remove capacity friction so the company can push intelligence, reliability, and safety without pausing ...",
         "source": "binaryverseai.com",
         "url": "https://binaryverseai.com/ai-news-november-8-2025/",
-        "publishedAt": "2025-11-07T14:38:33.837Z"
+        "publishedAt": "2025-11-07T17:06:26.180Z"
       }
     ]
   },
   {
     "topic": "Autonomous Driving",
     "articles": [
+      {
+        "title": "r/SelfDrivingCars on Reddit: NVIDIA approach to L4",
+        "summary": "Marco Pavone — NVIDIA Director of Autonomous Vehicle Research and Professor at Stanford University — explains the AI breakthroughs that have made L4 autonomy possible and the full stack system that ensures autonomous vehicle safety.",
+        "source": "reddit.com",
+        "url": "https://www.reddit.com/r/SelfDrivingCars/comments/1orboly/nvidia_approach_to_l4/",
+        "publishedAt": "2025-11-07T17:06:27.170Z"
+      },
       {
         "title": "Tesla shareholders approve $1-trillion pay package for Elon Musk",
         "summary": "More than 75% of Tesla shareholders voted to approve a staggering pay package for Chief Executive Elon Musk that could award him $1 trillion.",
@@ -78,21 +111,28 @@
     ]
   },
   {
-    "topic": "Humanoid Robots",
+    "topic": "Tech Gadgets",
     "articles": [
       {
-        "title": "XPeng Unveils Hyper-Realistic Humanoid Robot ‘IRON’ — So Lifelike They Opened It On Stage | Watch Video",
-        "summary": "Iron is not the first humanoid robot to capture significant attention. Just this year, Tesla&#x27;s Optimus, Boston Dynamics&#x27; Atlas, and the recently launched NEO household assistant robot from X1 have all had their time in the limelight.",
-        "source": "thebridgechronicle.com",
-        "url": "https://www.thebridgechronicle.com/tech/xpeng-humanoid-robot-iron-launch-demo-mp99",
-        "publishedAt": "2025-11-09T05:38:34.936Z"
+        "title": "Indian Startup IPO Tracker 2025",
+        "summary": "In April 2025, the company filed its draft <strong>red herring</strong> prospectus for INR 1,900 Cr public issue. It received SEBI’s approval for its IPO in August. The IPO, which opened on September 10, comprised a fresh issue of shares worth INR 472 Cr and ...",
+        "source": "inc42.com",
+        "url": "https://inc42.com/features/indian-startup-ipo-tracker-2025/",
+        "publishedAt": "2025-11-09T08:06:28.600Z"
       },
       {
-        "title": "Boston Dynamics - Wikipedia",
-        "summary": "<strong>The Leg Laboratory assisted with establishing the scientific basis for highly dynamic robots</strong>. These robots were inspired by the remarkable ability of animals to move with agility, dexterity, perception, and intelligence, and the work there set the stage for the robots developed at Boston Dynamics.",
-        "source": "en.wikipedia.org",
-        "url": "https://en.wikipedia.org/wiki/Boston_Dynamics",
-        "publishedAt": "2025-11-08T14:38:34.936Z"
+        "title": "Our favorite gadgets of 2025",
+        "summary": "Engadget’s Best of 2025: <strong>phones, tablets, cameras, even EVs</strong>!",
+        "source": "startupnews.fyi",
+        "url": "https://startupnews.fyi/2025/11/09/our-favorite-gadgets-of-2025/",
+        "publishedAt": "2025-11-09T03:06:28.600Z"
+      },
+      {
+        "title": "101 gadgets: Stuff's pick of brilliant smartphones from 2025 | Stuff",
+        "summary": "Smartphones have never been smarter. Or speedier. Or snappier. Here’s the ultimate kit for swiping, playing, and doomscrolling without a second thought",
+        "source": "stuff.tv",
+        "url": "https://www.stuff.tv/features/top-smartphones-2025/",
+        "publishedAt": "2025-11-08T17:06:28.600Z"
       }
     ]
   },
@@ -100,38 +140,31 @@
     "topic": "Anti-Aging Science",
     "articles": [
       {
-        "title": "This everyday vitamin could be the closest thing we have to an “anti-aging pill” | ScienceDaily",
-        "summary": "&quot;This everyday vitamin could be the closest thing we have to an “anti-aging pill”.&quot; ScienceDaily. www.sciencedaily.com ... May 21, 2025  A randomized trial suggests vitamin D can protect against telomere shortening, which is linked to risk of age-related ... Unveiling Telo-Seq: A Breakthrough in Telomere Research on Aging and Cancer",
-        "source": "sciencedaily.com",
-        "url": "https://www.sciencedaily.com/releases/2025/10/251022023132.htm",
-        "publishedAt": "2025-11-08T14:38:36.194Z"
-      },
-      {
-        "title": "Inside China’s Quest to Defy Aging with Longevity Labs and ‘Immortality Islands’ - The New York Times",
-        "summary": "A few years ago, there was nothing ... work on longevity, including <strong>an experiment that extended the expected life span of old mice by connecting their circulatory systems to young mice</strong>....",
-        "source": "nytimes.com",
-        "url": "https://www.nytimes.com/2025/11/08/world/asia/china-aging-longevity-science.html",
-        "publishedAt": "2025-11-08T14:38:36.194Z"
-      },
-      {
-        "title": "Boundless Life - Podcast - Apple Podcasts",
-        "summary": "I break down what researchers discovered about her genes, lifestyle, and daily habits (you might be surprised by some of the things she ate and didn’t do!). I also get nerdy about the newest longevity drugs and supplements—like curcumin, spermidine, taurine, and a few others you might not expect—and explain which ones actually work, according to the science in mammals.",
-        "source": "podcasts.apple.com",
-        "url": "https://podcasts.apple.com/qa/podcast/boundless-life/id283908977",
-        "publishedAt": "2025-11-08T14:38:36.194Z"
-      },
-      {
         "title": "When Medicine Becomes Marketing: How Celebrities Are Selling GLP-1s, Peptides And Longevity Through Telehealth",
         "summary": "Ro, Hims, and other telehealth and longevity companies are using celebrity to sell GLP-1s, imaging and diagnostics —raising FDA concerns.",
         "source": "Forbes",
         "url": "https://www.forbes.com/sites/sindhyavalloppillil/2025/11/06/when-medicine-becomes-marketing-how-celebrities-are-selling-glp-1s-peptides-and-longevity-through-telehealth/",
         "publishedAt": "2025-11-06T20:26:48Z"
+      },
+      {
+        "title": "3 things a celeb doctor adds to his tea to boost energy, fat loss and longevity",
+        "summary": "\"This simple routine is something I look forward to every morning.\"",
+        "source": "New York Post",
+        "url": "https://nypost.com/2025/11/05/health/3-things-a-celeb-doctor-adds-to-his-tea-to-support-longevity/",
+        "publishedAt": "2025-11-05T19:00:00Z"
       }
     ]
   },
   {
     "topic": "Virtual Medicine",
     "articles": [
+      {
+        "title": "Facilitated Telemedicine Boosts Long-Term Recovery for Patients with HCV and OUD, with Andrew Talal, MD | HCPLive",
+        "summary": "<strong>Integrating facilitated telemedicine into opioid treatment programs led to SVR, improved patient satisfaction, and long-term health gains 5 years post-cure</strong>.",
+        "source": "hcplive.com",
+        "url": "https://www.hcplive.com/view/facilitated-telemedicine-boosts-long-term-recovery-patients-hcv-oud-andrew-talal-md",
+        "publishedAt": "2025-11-08T22:06:29.571Z"
+      },
       {
         "title": "New YouTube health channel In Good Hands launches",
         "summary": "New YouTube health channel In Good Hands launches -- bringing credible, conversational healthcare conversations to every Indian home (#InGoodHands) - HT Syndication New Delhi [India], November 8: Today marks the launch of In Good Hands a new YouTube ... - Lat…",

@@ -126,24 +126,29 @@ Preferred communication style: Simple, everyday language.
 - Requires OPENAI_API_KEY environment variable
 
 **News Data Sources:**
-- **4-tier fallback system with intelligent merging** (November 2025):
-  - **Primary Sources (called in parallel)**: 
-    - Brave Search API (https://brave.com/search/api/) - Generous free tier (2,000 queries/month)
-    - NewsAPI (https://newsapi.org) - Free tier with daily rate limits
-  - **Backup Source #1**: CurrentsAPI (https://currentsapi.services) - 600 requests/month free tier
-  - **Backup Source #2**: MediaStack API (https://mediastack.com) - 100 requests/month free tier, **limited to 3 API calls/day max**
-  - **Smart Fallback Strategy**:
-    - Tier 1: Calls both Brave Search and NewsAPI simultaneously for maximum coverage
-    - Tier 2: If both fail, tries CurrentsAPI
-    - Tier 3: If all 3 fail, tries MediaStack (only if under daily 3-call limit)
-    - Tier 4: If all 4 sources fail, skips that topic
-  - **Deduplication & Quality**:
-    - Removes duplicate articles by URL and title similarity
-    - Prioritizes NewsAPI articles (better timestamps), adds unique Brave articles
-    - Sorts by recency (newest first)
-    - Limits to top 4 articles per topic for quality
-  - **Production fit**: With once-daily generation (26 API calls/day: 13 topics × 2 sources = ~800/month), all free tiers provide ample headroom
-  - **MediaStack Rate Limiting**: Persistent daily usage tracking in `/data/mediastack-usage.json` - resets daily at midnight, ensures max 3 calls/day
+- **Parallel sampling strategy with 4-source intelligent merging** (November 2025):
+  - **Primary Sources (always called in parallel)**: 
+    - Brave Search API (https://brave.com/search/api/) - 2,000 queries/month free tier
+    - NewsAPI (https://newsapi.org) - 100 queries/day free tier
+  - **Backup Sources (sampled in parallel within rate limits)**:
+    - CurrentsAPI (https://currentsapi.services) - 600 requests/month, ~20/day budget
+    - MediaStack API (https://mediastack.com) - 100 requests/month, **3 calls/day maximum**
+  - **Parallel Sampling Strategy**:
+    - Calls ALL available sources in parallel (2-4 sources depending on rate limits)
+    - Ensures minimum 1 call/day to backup sources for data quality assessment
+    - Merges all results with intelligent deduplication by URL and title similarity
+    - Logs source contributions (e.g., "Brave:3, NewsAPI:2, Currents:1 → 6 unique articles")
+    - Sorts by recency (newest first), limits to top 4 articles per topic
+  - **Rate Limiting & Budget Management**:
+    - Brave Search: Primary workhorse (2,000/month = ~65/day)
+    - NewsAPI: Primary workhorse (100/day)
+    - CurrentsAPI: Conservative 20/day budget (600/month headroom)
+    - MediaStack: Strict 3/day limit with persistent tracking
+  - **Usage Tracking**:
+    - Daily counters stored in `/data/currents-usage.json` and `/data/mediastack-usage.json`
+    - Automatic reset at midnight
+    - Pre-call limit checks prevent overages
+  - **Production fit**: Daily report generation calls ~40-50 APIs total (13 topics × 3-4 sources) = well within all free tier limits
 - Requires BRAVE_SEARCH_API_KEY, NEWSAPI_KEY, CURRENTS_API_KEY, and MEDIASTACK_API_KEY environment variables
 - Combined sources provide comprehensive coverage from major news outlets: Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, and thousands more
 
