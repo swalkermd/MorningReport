@@ -58,8 +58,9 @@ export class MemStorage implements IStorage {
     const reports = Array.from(this.reports.values());
     if (reports.length === 0) return undefined;
     
+    // Sort by actual generation timestamp, not scheduled date
     return reports.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
     )[0];
   }
 
@@ -181,8 +182,9 @@ export class FileStorage implements IStorage {
     const reports = Array.from(this.reports.values());
     if (reports.length === 0) return undefined;
     
+    // Sort by actual generation timestamp, not scheduled date
     return reports.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
     )[0];
   }
 
