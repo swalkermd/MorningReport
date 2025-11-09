@@ -3,6 +3,48 @@ import OpenAI from "openai";
 import { promises as fs } from "fs";
 import path from "path";
 
+// MediaStack daily usage tracking
+const MEDIASTACK_USAGE_FILE = path.join(process.cwd(), 'data', 'mediastack-usage.json');
+const MEDIASTACK_DAILY_LIMIT = 3;
+
+interface MediaStackUsage {
+  date: string;
+  count: number;
+}
+
+async function getMediaStackUsageToday(): Promise<number> {
+  try {
+    const data = await fs.readFile(MEDIASTACK_USAGE_FILE, 'utf-8');
+    const usage: MediaStackUsage = JSON.parse(data);
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (usage.date === today) {
+      return usage.count;
+    }
+    return 0; // New day, reset counter
+  } catch (error) {
+    return 0; // File doesn't exist or error reading
+  }
+}
+
+async function incrementMediaStackUsage(): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
+  const currentCount = await getMediaStackUsageToday();
+  
+  const usage: MediaStackUsage = {
+    date: today,
+    count: currentCount + 1
+  };
+  
+  try {
+    await fs.mkdir(path.dirname(MEDIASTACK_USAGE_FILE), { recursive: true });
+    await fs.writeFile(MEDIASTACK_USAGE_FILE, JSON.stringify(usage, null, 2));
+    console.log(`[MediaStack] Usage: ${usage.count}/${MEDIASTACK_DAILY_LIMIT} calls today`);
+  } catch (error) {
+    console.error('[MediaStack] Failed to update usage tracking:', error);
+  }
+}
+
 // Topic freshness tiers
 // Tier 1 (Breaking News): 24 hours - time-sensitive news that goes stale quickly
 // Tier 2 (Tech/Science): 96 hours (4 days) - slower-moving tech/science stories
@@ -163,6 +205,94 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string; fresh
     
   } catch (error) {
     console.error(`[BraveSearch] Error fetching ${topic.name}:`, error);
+    return { topic: topic.name, articles: [] };
+  }
+}
+
+/**
+ * Fetches news from MediaStack API (4th fallback source)
+ * Free tier: 100 requests/month, limited to 3 calls/day
+ * Used only when Brave Search, NewsAPI, and CurrentsAPI all fail
+ */
+async function scrapeNewsMediaStack(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
+  const apiKey = process.env.MEDIASTACK_API_KEY;
+  
+  if (!apiKey) {
+    console.error(`[MediaStack] API key not configured - skipping ${topic.name}`);
+    return { topic: topic.name, articles: [] };
+  }
+  
+  // Check daily usage limit
+  const usageToday = await getMediaStackUsageToday();
+  if (usageToday >= MEDIASTACK_DAILY_LIMIT) {
+    console.warn(`[MediaStack] Daily limit reached (${usageToday}/${MEDIASTACK_DAILY_LIMIT}) - skipping ${topic.name}`);
+    return { topic: topic.name, articles: [] };
+  }
+  
+  try {
+    // MediaStack uses keywords parameter and date filtering
+    // Free tier only supports HTTP (not HTTPS)
+    const response = await fetch(
+      `http://api.mediastack.com/v1/news?access_key=${apiKey}&keywords=${encodeURIComponent(topic.query)}&languages=en&limit=5&sort=published_desc`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    
+    // Increment usage counter after successful API call
+    await incrementMediaStackUsage();
+    
+    if (response.status === 429) {
+      console.warn(`[MediaStack] Rate limit hit for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`[MediaStack] Error for ${topic.name}:`, errorData);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.data || data.data.length === 0) {
+      console.warn(`[MediaStack] No articles found for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    // Filter and validate articles
+    const validArticles = data.data
+      .filter((article: any) => {
+        const hasTitle = article.title && article.title.length > 10;
+        const hasDescription = article.description && article.description.length > 30;
+        const hasSource = article.source;
+        return hasTitle && hasDescription && hasSource;
+      })
+      .map((article: any) => ({
+        title: article.title,
+        summary: article.description,
+        source: article.source,
+        url: article.url,
+        publishedAt: article.published_at,
+      }))
+      .filter((article: any) => isArticleFresh(article, topic.freshness))
+      .slice(0, 3);
+    
+    if (validArticles.length === 0) {
+      console.warn(`[MediaStack] No valid articles after filtering for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    console.log(`[MediaStack] Successfully fetched ${validArticles.length} articles for ${topic.name}`);
+    return {
+      topic: topic.name,
+      articles: validArticles,
+    };
+    
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      console.error(`[MediaStack] Timeout fetching ${topic.name}`);
+    } else {
+      console.error(`[MediaStack] Error fetching ${topic.name}:`, error);
+    }
     return { topic: topic.name, articles: [] };
   }
 }
@@ -489,8 +619,17 @@ export async function scrapeNews(topic: { name: string; query: string; freshness
     return currentsResult;
   }
   
-  // All sources failed
-  console.error(`[Multi-Source] ✗ ${topic.name} - All sources failed (Brave Search + NewsAPI + CurrentsAPI)`);
+  // If all 3 sources failed, try MediaStack as 4th fallback (with daily limit)
+  console.log(`[Multi-Source] All 3 sources failed for ${topic.name}, trying MediaStack (4th fallback)...`);
+  const mediastackResult = await scrapeNewsMediaStack(topic);
+  
+  if (mediastackResult.articles.length > 0) {
+    console.log(`[Multi-Source] ✓ ${topic.name} - Using MediaStack backup (${mediastackResult.articles.length} articles)`);
+    return mediastackResult;
+  }
+  
+  // All 4 sources failed
+  console.error(`[Multi-Source] ✗ ${topic.name} - All 4 sources failed (Brave + NewsAPI + Currents + MediaStack)`);
   return { topic: topic.name, articles: [] };
 }
 

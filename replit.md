@@ -126,19 +126,25 @@ Preferred communication style: Simple, everyday language.
 - Requires OPENAI_API_KEY environment variable
 
 **News Data Sources:**
-- **Dual-source parallel aggregation with intelligent merging** (November 2025):
+- **4-tier fallback system with intelligent merging** (November 2025):
   - **Primary Sources (called in parallel)**: 
     - Brave Search API (https://brave.com/search/api/) - Generous free tier (2,000 queries/month)
     - NewsAPI (https://newsapi.org) - Free tier with daily rate limits
-  - **Backup Source**: CurrentsAPI (https://currentsapi.services) - Only used if both primary sources fail
-  - **Smart Merging Strategy**:
-    - Calls both Brave Search and NewsAPI simultaneously for maximum coverage
-    - Deduplicates articles by URL and title similarity
+  - **Backup Source #1**: CurrentsAPI (https://currentsapi.services) - 600 requests/month free tier
+  - **Backup Source #2**: MediaStack API (https://mediastack.com) - 100 requests/month free tier, **limited to 3 API calls/day max**
+  - **Smart Fallback Strategy**:
+    - Tier 1: Calls both Brave Search and NewsAPI simultaneously for maximum coverage
+    - Tier 2: If both fail, tries CurrentsAPI
+    - Tier 3: If all 3 fail, tries MediaStack (only if under daily 3-call limit)
+    - Tier 4: If all 4 sources fail, skips that topic
+  - **Deduplication & Quality**:
+    - Removes duplicate articles by URL and title similarity
     - Prioritizes NewsAPI articles (better timestamps), adds unique Brave articles
     - Sorts by recency (newest first)
     - Limits to top 4 articles per topic for quality
-  - **Production fit**: With once-daily generation (26 API calls/day: 13 topics × 2 sources = ~800/month), both free tiers provide ample headroom
-- Requires BRAVE_SEARCH_API_KEY, NEWSAPI_KEY, and CURRENTS_API_KEY environment variables
+  - **Production fit**: With once-daily generation (26 API calls/day: 13 topics × 2 sources = ~800/month), all free tiers provide ample headroom
+  - **MediaStack Rate Limiting**: Persistent daily usage tracking in `/data/mediastack-usage.json` - resets daily at midnight, ensures max 3 calls/day
+- Requires BRAVE_SEARCH_API_KEY, NEWSAPI_KEY, CURRENTS_API_KEY, and MEDIASTACK_API_KEY environment variables
 - Combined sources provide comprehensive coverage from major news outlets: Reuters, AP, BBC, NYT, WSJ, Guardian, CNBC, Bloomberg, TechCrunch, Wired, and thousands more
 
 **News Caching System** (November 2025):
