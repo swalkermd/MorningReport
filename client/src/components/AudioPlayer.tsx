@@ -21,6 +21,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   const [currentReport, setCurrentReport] = useState<string | null | undefined>(audioPath);
   const loadedAudioPathRef = useRef<string | null>(null);
   const introEndedHandlerRef = useRef<(() => void) | null>(null);
+  const hasPlayedIntroRef = useRef<boolean>(false);
   
   // Use audioPaths array if available, otherwise fall back to single audioPath
   // Memoize to prevent effect from retriggering on every render
@@ -67,6 +68,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
       setIsIntroPlaying(false);
       setCurrentSegment(0);
       setCurrentReport(audioPath);
+      hasPlayedIntroRef.current = false; // Reset intro flag for new report
     }
 
     const currentAudioPath = audioSegments[currentSegment];
@@ -154,6 +156,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
                     setIsPlaying(false);
                     setCurrentSegment(0);
                     loadedAudioPathRef.current = null;
+                    hasPlayedIntroRef.current = false; // Reset for next play
                   }
                 }
               }, fadeInterval);
@@ -170,6 +173,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
             setIsPlaying(false);
             setCurrentSegment(0);
             loadedAudioPathRef.current = null;
+            hasPlayedIntroRef.current = false; // Reset for next play
           }
         }
       };
@@ -210,6 +214,8 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
       intro.pause();
       main.pause();
       
+      console.log(`[AudioPlayer] Paused at ${main.currentTime.toFixed(1)}s`);
+      
       // Remove any pending event listeners
       if (introEndedHandlerRef.current) {
         intro.removeEventListener("ended", introEndedHandlerRef.current);
@@ -219,94 +225,114 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
       setIsPlaying(false);
       setIsIntroPlaying(false);
     } else {
+      // Resuming playback
       setIsPlaying(true);
-      setIsIntroPlaying(true);
-
-      intro.currentTime = 0;
-      intro.volume = 0;
       
-      try {
-        await intro.play();
-
-        const fadeInSteps = 10;
-        const fadeInInterval = 50;
-        const targetVolume = 1;
-        const volumeIncrement = targetVolume / fadeInSteps;
-        
-        fadeIntervalRef.current = setInterval(() => {
-          if (intro.volume < targetVolume - volumeIncrement) {
-            intro.volume = Math.min(targetVolume, intro.volume + volumeIncrement);
-          } else {
-            intro.volume = targetVolume;
-            if (fadeIntervalRef.current) {
-              clearInterval(fadeIntervalRef.current);
-              fadeIntervalRef.current = null;
-            }
-          }
-        }, fadeInInterval);
-
-        if (!intro.duration) {
-          await new Promise<void>((resolve) => {
-            intro.addEventListener("loadedmetadata", () => resolve(), { once: true });
-          });
-        }
-
-        if (intro.duration && intro.duration > 2) {
-          const fadeOutDuration = 2000;
-          const fadeOutStart = Math.max(0, (intro.duration - fadeOutDuration / 1000) * 1000);
-          
-          setTimeout(() => {
-            if (fadeIntervalRef.current) {
-              clearInterval(fadeIntervalRef.current);
-            }
-
-            const fadeSteps = 20;
-            const fadeInterval = fadeOutDuration / fadeSteps;
-            const volumeDecrement = intro.volume / fadeSteps;
-
-            fadeIntervalRef.current = setInterval(() => {
-              if (intro.volume > volumeDecrement) {
-                intro.volume = Math.max(0, intro.volume - volumeDecrement);
-              } else {
-                intro.volume = 0;
-                intro.pause();
-                if (fadeIntervalRef.current) {
-                  clearInterval(fadeIntervalRef.current);
-                  fadeIntervalRef.current = null;
-                }
-                setIsIntroPlaying(false);
-              }
-            }, fadeInterval);
-          }, fadeOutStart);
-        }
-
-        // Remove any existing event listener before adding a new one
-        if (introEndedHandlerRef.current) {
-          intro.removeEventListener("ended", introEndedHandlerRef.current);
-        }
-        
-        // Create and store the event handler
-        introEndedHandlerRef.current = async () => {
-          setIsIntroPlaying(false);
-          if (!isPlaying) return;
-          
-          main.volume = 1;
-          main.currentTime = 0;
-          
-          try {
-            await main.play();
-          } catch (err) {
-            console.error("Error playing main audio:", err);
-            setIsPlaying(false);
-          }
-        };
-        
-        intro.addEventListener("ended", introEndedHandlerRef.current, { once: true });
-
-      } catch (err) {
-        console.error("Error playing intro audio:", err);
-        setIsPlaying(false);
+      // Check if we should play intro (first play) or resume main audio (resuming after pause)
+      if (hasPlayedIntroRef.current) {
+        // Resuming - skip intro and just resume main audio from current position
+        console.log(`[AudioPlayer] Resuming playback from ${main.currentTime.toFixed(1)}s (skipping intro)`);
         setIsIntroPlaying(false);
+        main.volume = 1;
+        
+        try {
+          await main.play();
+        } catch (err) {
+          console.error("Error resuming main audio:", err);
+          setIsPlaying(false);
+        }
+      } else {
+        // First play - play intro music then main audio
+        console.log("[AudioPlayer] First play - starting with intro music");
+        setIsIntroPlaying(true);
+        hasPlayedIntroRef.current = true; // Mark that we've played the intro
+
+        intro.currentTime = 0;
+        intro.volume = 0;
+        
+        try {
+          await intro.play();
+
+          const fadeInSteps = 10;
+          const fadeInInterval = 50;
+          const targetVolume = 1;
+          const volumeIncrement = targetVolume / fadeInSteps;
+          
+          fadeIntervalRef.current = setInterval(() => {
+            if (intro.volume < targetVolume - volumeIncrement) {
+              intro.volume = Math.min(targetVolume, intro.volume + volumeIncrement);
+            } else {
+              intro.volume = targetVolume;
+              if (fadeIntervalRef.current) {
+                clearInterval(fadeIntervalRef.current);
+                fadeIntervalRef.current = null;
+              }
+            }
+          }, fadeInInterval);
+
+          if (!intro.duration) {
+            await new Promise<void>((resolve) => {
+              intro.addEventListener("loadedmetadata", () => resolve(), { once: true });
+            });
+          }
+
+          if (intro.duration && intro.duration > 2) {
+            const fadeOutDuration = 2000;
+            const fadeOutStart = Math.max(0, (intro.duration - fadeOutDuration / 1000) * 1000);
+            
+            setTimeout(() => {
+              if (fadeIntervalRef.current) {
+                clearInterval(fadeIntervalRef.current);
+              }
+
+              const fadeSteps = 20;
+              const fadeInterval = fadeOutDuration / fadeSteps;
+              const volumeDecrement = intro.volume / fadeSteps;
+
+              fadeIntervalRef.current = setInterval(() => {
+                if (intro.volume > volumeDecrement) {
+                  intro.volume = Math.max(0, intro.volume - volumeDecrement);
+                } else {
+                  intro.volume = 0;
+                  intro.pause();
+                  if (fadeIntervalRef.current) {
+                    clearInterval(fadeIntervalRef.current);
+                    fadeIntervalRef.current = null;
+                  }
+                  setIsIntroPlaying(false);
+                }
+              }, fadeInterval);
+            }, fadeOutStart);
+          }
+
+          // Remove any existing event listener before adding a new one
+          if (introEndedHandlerRef.current) {
+            intro.removeEventListener("ended", introEndedHandlerRef.current);
+          }
+          
+          // Create and store the event handler
+          introEndedHandlerRef.current = async () => {
+            setIsIntroPlaying(false);
+            if (!isPlaying) return;
+            
+            main.volume = 1;
+            main.currentTime = 0; // Start main audio from beginning on first play
+            
+            try {
+              await main.play();
+            } catch (err) {
+              console.error("Error playing main audio:", err);
+              setIsPlaying(false);
+            }
+          };
+          
+          intro.addEventListener("ended", introEndedHandlerRef.current, { once: true });
+
+        } catch (err) {
+          console.error("Error playing intro audio:", err);
+          setIsPlaying(false);
+          setIsIntroPlaying(false);
+        }
       }
     }
   };
