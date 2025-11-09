@@ -58,6 +58,11 @@ Preferred communication style: Simple, everyday language.
 
 2. **OpenAI Integration** (`openai.ts`):
    - Report generation using GPT-4o with context from previous 5 reports to avoid repetition
+   - **Topic Coverage Balancing**: Analyzes previous 5 reports to ensure every topic gets coverage at least once per 5-report cycle
+     - Tracks which topics appeared in previous reports
+     - Identifies underrepresented topics (0 mentions in last 5 reports)
+     - Prioritizes underrepresented topics in prompt to ensure balanced coverage
+     - Logs topic coverage statistics for monitoring (e.g., "NBA: 4/5, Travel: 0/5")
    - Target ~1000 word length for comprehensive coverage
    - **Multi-segment audio generation**: Intelligently splits text into chunks <4096 characters (OpenAI TTS limit)
      - Splits at paragraph boundaries when possible
@@ -65,7 +70,7 @@ Preferred communication style: Simple, everyday language.
      - Uses character-level hard split as final fallback to guarantee all segments stay under limit
      - Filters empty paragraphs/sentences
    - **Atomic file creation**: Writes to temporary files, renames on success, cleans up all files on error
-   - Text-to-speech conversion using OpenAI's TTS API (nova voice, tts-1-hd model)
+   - Text-to-speech conversion using OpenAI's TTS API (nova voice, tts-1-hd model, 1.1x playback speed)
    - Natural, conversational tone optimized for audio delivery
 
 3. **Report Generator** (`reportGenerator.ts`):
@@ -127,6 +132,8 @@ Preferred communication style: Simple, everyday language.
   - Validates minimum coverage (MIN_TOPICS_FOR_CACHE = 5 topics required)
   - Rejects empty or sparse caches to prevent permanent failures
   - Falls back to fresh API scrape if cached data is insufficient
+  - **Development Mode**: Automatically uses most recent cache file if today's cache doesn't exist (allows testing across days)
+  - **Production Mode**: Only uses cache for current date (ensures fresh news daily)
 - **Cache Validation**:
   - Read validation: Returns null if cache has <5 topics, triggering fresh fetch
   - Write validation: Refuses to save caches with <5 topics, logs warning

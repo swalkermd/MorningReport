@@ -16,6 +16,56 @@ export interface NewsContent {
   }>;
 }
 
+/**
+ * Analyzes previous reports to determine which topics haven't been covered recently
+ * Ensures balanced coverage across all topics over a 5-report cycle
+ */
+function analyzeTopicCoverage(newsContent: NewsContent[], previousReports: string[]): {
+  underrepresentedTopics: string[];
+  topicCoverageSummary: string;
+} {
+  if (previousReports.length === 0) {
+    return { 
+      underrepresentedTopics: [],
+      topicCoverageSummary: ""
+    };
+  }
+
+  // Extract all available topic names from newsContent
+  const allTopics = newsContent.map(nc => nc.topic);
+  
+  // Count how many times each topic appears in previous reports
+  const topicMentions: Map<string, number> = new Map();
+  allTopics.forEach(topic => topicMentions.set(topic, 0));
+  
+  // Scan previous reports for topic coverage
+  previousReports.forEach(report => {
+    allTopics.forEach(topic => {
+      // Check if topic name or key terms appear in the report
+      const topicTerms = topic.toLowerCase();
+      if (report.toLowerCase().includes(topicTerms)) {
+        topicMentions.set(topic, (topicMentions.get(topic) || 0) + 1);
+      }
+    });
+  });
+  
+  // Identify topics not covered in any of the last 5 reports
+  const underrepresentedTopics = allTopics.filter(topic => 
+    (topicMentions.get(topic) || 0) === 0
+  );
+  
+  // Create summary for logging and prompt
+  const coverageSummary = Array.from(topicMentions.entries())
+    .sort((a, b) => a[1] - b[1]) // Sort by coverage count (least to most)
+    .map(([topic, count]) => `${topic}: ${count}/${previousReports.length}`)
+    .join(", ");
+  
+  return {
+    underrepresentedTopics,
+    topicCoverageSummary: coverageSummary
+  };
+}
+
 export async function generateNewsReport(
   newsContent: NewsContent[],
   previousReports: string[],
@@ -26,6 +76,20 @@ export async function generateNewsReport(
   
   if (validNewsContent.length === 0) {
     throw new Error('No valid news articles available - cannot generate quality report');
+  }
+  
+  // Analyze topic coverage in previous reports
+  const { underrepresentedTopics, topicCoverageSummary } = analyzeTopicCoverage(
+    validNewsContent, 
+    previousReports
+  );
+  
+  if (topicCoverageSummary) {
+    console.log(`[Topic Coverage] ${topicCoverageSummary}`);
+  }
+  
+  if (underrepresentedTopics.length > 0) {
+    console.log(`[Topic Balance] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(', ')}`);
   }
   
   const newsContentStr = validNewsContent
@@ -44,6 +108,15 @@ export async function generateNewsReport(
 
   const previousReportsContext = previousReports.length > 0
     ? `\n\nPrevious 5 reports (avoid repeating this content unless there are significant updates):\n${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}`
+    : "";
+  
+  // Build topic balance guidance
+  const topicBalanceGuidance = underrepresentedTopics.length > 0
+    ? `\n\n🎯 TOPIC COVERAGE REQUIREMENT:
+The following topics have NOT appeared in the last ${previousReports.length} reports and MUST be included in today's report if they have newsworthy content with specific facts:
+${underrepresentedTopics.map(t => `- ${t}`).join('\n')}
+
+To ensure balanced coverage, prioritize these underrepresented topics when selecting stories. Every topic should appear at least once every 5 reports.`
     : "";
 
   // Format date for the intro (e.g., "Monday, November 8th, 2025")
@@ -106,13 +179,14 @@ CITATION REQUIREMENTS:
 
 CONTENT SELECTION:
 - PRIORITY TOPICS (prioritize these if notable): NBA, Redlands CA Local News
+- TOPIC BALANCE: Each topic should appear at least once every 5 reports to ensure comprehensive coverage
 - Only include stories with SPECIFIC, verifiable facts
 - MUST have: organization/person name + number/metric + location/timeframe
 - Skip any topic where source data is too vague or story isn't newsworthy
 - Better to cover stories well than force inclusion of unremarkable content
 - Focus on: major announcements, statistical changes, product launches, policy decisions
 - If NBA or Redlands news is notable and meets quality standards, prioritize it
-- Skip any topic (including priority topics) if the news isn't significant or lacks specifics
+- Skip any topic (including priority topics) if the news isn't significant or lacks specifics${topicBalanceGuidance}
 
 ON THIS DAY IN HISTORY:
 - After covering the main news topics, include a brief "On This Day in History" segment
