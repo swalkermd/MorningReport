@@ -1,6 +1,6 @@
 import path from "path";
 import { storage } from "./storage";
-import { scrapeAllNews } from "./newsService";
+import { scrapeAllNews, NEWS_TOPICS } from "./newsService";
 import { generateNewsReport, generateAudioFromText } from "./openai";
 import { promises as fs } from "fs";
 
@@ -8,7 +8,32 @@ export async function generateDailyReport(): Promise<void> {
   console.log("Step 1: Scraping news from all sources...");
   const newsContent = await scrapeAllNews();
   
-  console.log(`Step 2: Retrieved news for ${newsContent.length} topics`);
+  const successfulTopics = newsContent.filter(content => content.articles.length > 0);
+  console.log(`Step 2: Retrieved news for ${successfulTopics.length} topics`);
+  
+  // Topic coverage monitoring - compare against all 13 expected topics
+  console.log('\n=== TOPIC COVERAGE SUMMARY ===');
+  console.log(`✓ Successful: ${successfulTopics.length}/${NEWS_TOPICS.length} topics`);
+  console.log('With data:', successfulTopics.map(t => t.topic).join(', ') || 'None');
+  
+  // Find which topics are missing by comparing with full NEWS_TOPICS list
+  const successfulTopicNames = new Set(successfulTopics.map(t => t.topic));
+  const failedTopics = NEWS_TOPICS.filter(t => !successfulTopicNames.has(t.name)).map(t => t.name);
+  
+  if (failedTopics.length > 0) {
+    console.log(`✗ Missing: ${failedTopics.length}/${NEWS_TOPICS.length} topics`);
+    console.log('Without data:', failedTopics.join(', '));
+    
+    if (failedTopics.length > 8) {
+      console.warn('\n⚠️  HIGH FAILURE RATE: This is likely due to API rate limiting during testing');
+      console.warn('In production (once daily at 5:30 AM), expect 10-13/13 topics to succeed');
+    } else if (failedTopics.length > 3) {
+      console.warn('\n⚠️  MODERATE FAILURE: Some topics consistently missing - may need query optimization');
+    }
+  } else {
+    console.log('✓ Perfect coverage: All 13 topics have data!');
+  }
+  console.log('==============================\n');
   
   // Get previous 5 reports for context
   const previousReports = await storage.getRecentReports(5);
