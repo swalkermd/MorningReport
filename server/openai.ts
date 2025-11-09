@@ -148,6 +148,7 @@ CRITICAL REQUIREMENTS:
 - ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
 - REJECT generic content - if source data lacks specifics, skip that topic entirely
 - DO NOT improvise your own closing - use the required closing line only
+- Use current, accurate titles for political figures (e.g., "President", "President-elect", not outdated titles)
 
 NATIONAL NEWS QUALITY STANDARDS:
 - Include SPECIFIC names (people, companies, organizations)

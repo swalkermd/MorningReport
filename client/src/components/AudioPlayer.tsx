@@ -75,15 +75,95 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
       mainAudioRef.current = main;
       loadedAudioPathRef.current = currentAudioPath;
       
-      const handleEnded = () => {
-        if (currentSegment < audioSegments.length - 1) {
-          setCurrentSegment(prev => prev + 1);
-          loadedAudioPathRef.current = null; // Clear so next segment loads
-        } else {
-          setIsPlaying(false);
+      const handleEnded = async () => {
+        const intro = introAudioRef.current;
+        if (!intro) return;
+        
+        // Play intro music between segments or at the end
+        setIsIntroPlaying(true);
+        intro.currentTime = 0;
+        intro.volume = 0;
+        
+        try {
+          await intro.play();
+          
+          // Fade in intro music
+          const fadeInSteps = 10;
+          const fadeInInterval = 50;
+          const targetVolume = 1;
+          const volumeIncrement = targetVolume / fadeInSteps;
+          
+          let fadeInIntervalId: NodeJS.Timeout | null = setInterval(() => {
+            if (intro.volume < targetVolume - volumeIncrement) {
+              intro.volume = Math.min(targetVolume, intro.volume + volumeIncrement);
+            } else {
+              intro.volume = targetVolume;
+              if (fadeInIntervalId) {
+                clearInterval(fadeInIntervalId);
+                fadeInIntervalId = null;
+              }
+            }
+          }, fadeInInterval);
+          
+          // Wait for metadata to get duration
+          if (!intro.duration) {
+            await new Promise<void>((resolve) => {
+              intro.addEventListener("loadedmetadata", () => resolve(), { once: true });
+            });
+          }
+          
+          // Schedule fade out
+          if (intro.duration && intro.duration > 2) {
+            const fadeOutDuration = 2000;
+            const fadeOutStart = Math.max(0, (intro.duration - fadeOutDuration / 1000) * 1000);
+            
+            setTimeout(() => {
+              if (fadeInIntervalId) {
+                clearInterval(fadeInIntervalId);
+              }
+              
+              const fadeSteps = 20;
+              const fadeInterval = fadeOutDuration / fadeSteps;
+              const volumeDecrement = intro.volume / fadeSteps;
+              
+              let fadeOutIntervalId: NodeJS.Timeout | null = setInterval(() => {
+                if (intro.volume > volumeDecrement) {
+                  intro.volume = Math.max(0, intro.volume - volumeDecrement);
+                } else {
+                  intro.volume = 0;
+                  intro.pause();
+                  if (fadeOutIntervalId) {
+                    clearInterval(fadeOutIntervalId);
+                    fadeOutIntervalId = null;
+                  }
+                  setIsIntroPlaying(false);
+                  
+                  // After music fades out, move to next segment or finish
+                  if (currentSegment < audioSegments.length - 1) {
+                    setCurrentSegment(prev => prev + 1);
+                    loadedAudioPathRef.current = null; // Clear so next segment loads
+                  } else {
+                    // All segments done - stop playback
+                    setIsPlaying(false);
+                    setCurrentSegment(0);
+                    loadedAudioPathRef.current = null;
+                  }
+                }
+              }, fadeInterval);
+            }, fadeOutStart);
+          }
+        } catch (err) {
+          console.error("Error playing intro music between segments:", err);
+          // Fallback: just move to next segment
           setIsIntroPlaying(false);
-          setCurrentSegment(0);
-          loadedAudioPathRef.current = null;
+          if (currentSegment < audioSegments.length - 1) {
+            setCurrentSegment(prev => prev + 1);
+            loadedAudioPathRef.current = null;
+          } else {
+            setIsPlaying(false);
+            setCurrentSegment(0);
+            loadedAudioPathRef.current = null;
+          }
         }
       };
 
