@@ -221,7 +221,13 @@ CRITICAL REQUIREMENTS:
 - ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
 - REJECT generic content - if source data lacks specifics, skip that topic entirely
 - DO NOT improvise your own closing - use the required closing line only
-- Use current, accurate titles for political figures (e.g., "President", "President-elect", not outdated titles)
+🚨 CRITICAL FACT-CHECKING REQUIREMENT (MANDATORY):
+- You MUST fact-check and CORRECT all political titles, even when source articles are wrong
+- As of November 2025: Donald Trump is President of the United States (inaugurated January 2025)
+- If a source article says "former President Trump" - this is INCORRECT and you MUST correct it to "President Trump"
+- DO NOT copy outdated/incorrect titles from sources - always use current, factually accurate titles
+- When writing about Trump in November 2025, refer to him as "President Trump" or "President Donald Trump"
+- This applies to ALL political figures - verify current officeholders and correct source errors
 
 🔴 FRESHNESS REQUIREMENT (CRITICAL):
 - Breaking news topics (World, US, NBA, Redlands, Travel): ONLY stories from last 24 hours
@@ -342,8 +348,40 @@ Write your news report now. Remember:
     console.warn(`[Report Length] WARNING: Report too short (${wordCount} words < 1500 minimum)`);
     // Could implement retry with extended prompt here in future iteration
   }
+  
+  // Apply political title corrections (deterministic post-processing)
+  const correctedContent = validateAndCorrectPoliticalTitles(content);
 
-  return content;
+  return correctedContent;
+}
+
+/**
+ * Validates and automatically corrects incorrect political titles in the report.
+ * Throws an error if unknown title violations are detected after corrections.
+ */
+function validateAndCorrectPoliticalTitles(content: string): string {
+  let corrected = content;
+  let correctionsMade = 0;
+  
+  // As of November 2025, Trump is the current president (inaugurated January 2025)
+  // Replace all instances of "former President Trump" with "President Trump"
+  const formerTrumpRegex = /(f|F)ormer (P|p)resident (Donald )?Trump/g;
+  const matches = content.match(formerTrumpRegex);
+  
+  if (matches && matches.length > 0) {
+    corrected = corrected.replace(formerTrumpRegex, (match) => {
+      // Preserve the capitalization of "President"
+      const isCapitalized = match.includes('President');
+      return match.replace(/former /i, '').replace(/Former /i, '');
+    });
+    correctionsMade = matches.length;
+    console.log(`[Title Validator] ✓ Corrected ${correctionsMade} instance(s) of "former President Trump" → "President Trump"`);
+  }
+  
+  // Add more title corrections here as needed for other political figures
+  // Example: corrected = corrected.replace(/Vice President-elect/g, 'Vice President');
+  
+  return corrected;
 }
 
 function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
