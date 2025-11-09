@@ -150,6 +150,14 @@ CRITICAL REQUIREMENTS:
 - DO NOT improvise your own closing - use the required closing line only
 - Use current, accurate titles for political figures (e.g., "President", "President-elect", not outdated titles)
 
+🔴 FRESHNESS REQUIREMENT (CRITICAL):
+- ONLY include stories published within the last 24 hours
+- REJECT any article that references events from more than 1 day ago
+- Check publication dates in source metadata - if marked older than yesterday, SKIP IT
+- For sports (NBA, etc.): Only include games/events from yesterday or today
+- For announcements: Must be from yesterday or today
+- Better to skip a topic entirely than include stale news
+
 NATIONAL NEWS QUALITY STANDARDS:
 - Include SPECIFIC names (people, companies, organizations)
 - Include NUMBERS (percentages, amounts, statistics)

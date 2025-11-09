@@ -62,17 +62,18 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Pr
       return { topic: topic.name, articles: [] };
     }
     
-    const validArticles = data.web.results
+    // Parse and validate articles with timestamps
+    const articlesWithTimestamps = data.web.results
       .filter((result: any) => {
         const hasTitle = result.title && result.title.length > 10;
         const hasDescription = result.description && result.description.length > 30;
         const hasUrl = result.url;
         return hasTitle && hasDescription && hasUrl;
       })
-      .slice(0, 3)
       .map((result: any) => {
-        // Normalize timestamp - Brave may return relative strings or ISO dates
-        let publishedAt = new Date().toISOString();
+        // Try to parse timestamp from Brave Search result
+        let publishedAt: string | null = null;
+        
         if (result.age) {
           try {
             const parsed = new Date(result.age);
@@ -80,7 +81,7 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Pr
               publishedAt = parsed.toISOString();
             }
           } catch {
-            // Keep default timestamp if parsing fails
+            // Could not parse age field
           }
         }
         
@@ -90,8 +91,32 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Pr
           source: new URL(result.url).hostname.replace('www.', ''),
           url: result.url,
           publishedAt,
+          rawAge: result.age, // Keep for logging
         };
-      });
+      })
+      .filter((article: any) => {
+        // CRITICAL: Discard articles without parseable timestamps
+        // Do NOT fabricate timestamps - this allows stale content through
+        if (!article.publishedAt) {
+          console.log(`[BraveSearch] Discarded article without parseable timestamp: "${article.title.substring(0, 50)}" (age: ${article.rawAge})`);
+          return false;
+        }
+        
+        // Additionally validate freshness here (belt and suspenders)
+        const publishedDate = new Date(article.publishedAt);
+        const now = new Date();
+        const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
+        
+        if (ageHours > 24) {
+          console.log(`[BraveSearch] Discarded stale article (${ageHours.toFixed(1)}h old): "${article.title.substring(0, 50)}"`);
+          return false;
+        }
+        
+        return true;
+      })
+      .map(({ rawAge, ...article }: any) => article); // Remove rawAge from final output
+    
+    const validArticles = articlesWithTimestamps.slice(0, 3);
     
     if (validArticles.length === 0) {
       console.warn(`[BraveSearch] No valid results after filtering for ${topic.name}`);
@@ -121,9 +146,14 @@ async function scrapeNewsCurrentsAPI(topic: { name: string; query: string }): Pr
     return { topic: topic.name, articles: [] };
   }
   
+  // Calculate 24-hour window (ISO format: YYYY-MM-DD for CurrentsAPI)
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const startDate = oneDayAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+  
   try {
     const response = await fetch(
-      `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(topic.query)}&language=en&apiKey=${apiKey}`,
+      `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(topic.query)}&start_date=${startDate}&language=en&apiKey=${apiKey}`,
       { signal: AbortSignal.timeout(30000) }
     );
     
@@ -200,6 +230,11 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
     return { topic: topic.name, articles: [] };
   }
   
+  // Calculate 24-hour window (ISO format for NewsAPI)
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const fromDate = oneDayAgo.toISOString();
+  
   const maxRetries = 2;
   let lastError: Error | null = null;
   
@@ -212,7 +247,7 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
       }
       
       const response = await fetch(
-        `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic.query)}&sortBy=publishedAt&language=en&pageSize=5&apiKey=${apiKey}`,
+        `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic.query)}&from=${fromDate}&sortBy=publishedAt&language=en&pageSize=5&apiKey=${apiKey}`,
         { signal: AbortSignal.timeout(10000) }
       );
       
@@ -288,6 +323,34 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
 }
 
 /**
+ * Validates article freshness - rejects articles older than 24 hours
+ * Returns true if article is fresh, false if stale
+ */
+function isArticleFresh(article: any): boolean {
+  if (!article.publishedAt) {
+    console.warn(`[Freshness] Article missing publishedAt timestamp: ${article.title?.substring(0, 50)}`);
+    return false; // Reject articles without timestamps
+  }
+  
+  try {
+    const publishedDate = new Date(article.publishedAt);
+    const now = new Date();
+    const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
+    
+    // Reject articles older than 24 hours
+    if (ageHours > 24) {
+      console.log(`[Freshness] Rejected stale article (${ageHours.toFixed(1)}h old): ${article.title?.substring(0, 60)}`);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.warn(`[Freshness] Failed to parse publishedAt for article: ${article.title?.substring(0, 50)}`);
+    return false;
+  }
+}
+
+/**
  * Normalize article title for comparison (lowercase, remove punctuation/whitespace)
  */
 function normalizeTitle(title: string): string {
@@ -351,8 +414,25 @@ export async function scrapeNews(topic: { name: string; query: string }): Promis
   }
   
   if (mergedArticles.length > 0) {
+    // Filter out stale articles (older than 24 hours)
+    const freshArticles = mergedArticles.filter(isArticleFresh);
+    
+    if (freshArticles.length === 0) {
+      console.warn(`[Multi-Source] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered out as stale (>24h old)`);
+      // Fall back to CurrentsAPI
+      const currentsResult = await scrapeNewsCurrentsAPI(topic);
+      if (currentsResult.articles.length > 0) {
+        const freshCurrentsArticles = currentsResult.articles.filter(isArticleFresh);
+        if (freshCurrentsArticles.length > 0) {
+          console.log(`[Multi-Source] ✓ ${topic.name} - Using CurrentsAPI backup (${freshCurrentsArticles.length} fresh articles)`);
+          return { topic: topic.name, articles: freshCurrentsArticles.slice(0, 4) };
+        }
+      }
+      return { topic: topic.name, articles: [] };
+    }
+    
     // Sort by recency (most recent first) - prioritize articles with valid timestamps
-    const sortedArticles = mergedArticles.sort((a, b) => {
+    const sortedArticles = freshArticles.sort((a, b) => {
       const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
       const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
       return dateB - dateA; // Descending (newest first)
@@ -361,7 +441,7 @@ export async function scrapeNews(topic: { name: string; query: string }): Promis
     // Limit to top 4 articles per topic to maintain quality
     const topArticles = sortedArticles.slice(0, 4);
     
-    console.log(`[Multi-Source] ✓ ${topic.name} - Merged Brave (${braveResult.articles.length}) + NewsAPI (${newsApiResult.articles.length}) → ${mergedArticles.length} unique → top ${topArticles.length} selected`);
+    console.log(`[Multi-Source] ✓ ${topic.name} - Merged Brave (${braveResult.articles.length}) + NewsAPI (${newsApiResult.articles.length}) → ${mergedArticles.length} unique → ${freshArticles.length} fresh → top ${topArticles.length} selected`);
     
     return {
       topic: topic.name,
