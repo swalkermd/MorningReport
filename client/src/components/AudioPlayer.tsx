@@ -26,6 +26,12 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   const loadedAudioPathRef = useRef<string | null>(null);
   const introEndedHandlerRef = useRef<(() => void) | null>(null);
   const hasPlayedIntroRef = useRef<boolean>(false);
+  const isPlayingRef = useRef<boolean>(false);
+  
+  // Sync ref with state to avoid stale closures
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
   
   // Use audioPaths array if available, otherwise fall back to single audioPath
   // Memoize to prevent effect from retriggering on every render
@@ -455,7 +461,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
           // Create and store the event handler
           introEndedHandlerRef.current = async () => {
             setIsIntroPlaying(false);
-            if (!isPlaying) return;
+            if (!isPlayingRef.current) return;
             
             main.volume = 1;
             main.currentTime = 0; // Start main audio from beginning on first play

@@ -47,11 +47,11 @@ export function ReportDisplay({ content, className = "", "data-testid": testId }
       </div>
       <CardContent className="p-4 md:p-6 flex-1 overflow-y-auto">
         <div 
-          className="prose prose-sm max-w-none text-foreground leading-relaxed pr-20"
+          className="prose prose-sm max-w-none text-foreground leading-7 pr-20"
           data-testid="text-report-content"
         >
           {content.split('\n\n').map((paragraph, index) => (
-            <p key={index} className="mb-2 last:mb-0">
+            <p key={index} className="mb-4 last:mb-0">
               {paragraph}
             </p>
           ))}
