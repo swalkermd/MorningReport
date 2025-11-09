@@ -205,7 +205,14 @@ QUALITY VALIDATION (each story must pass):
 DELIVERY STYLE:
 - Professional but conversational (NPR/BBC style)
 - Short sentences for audio clarity
-- Smooth transitions between unrelated topics
+- Smooth transitions between topics WITHOUT stating topic names as headers
+- DO NOT say "World News", "NBA", "Electric Vehicles", etc. as section titles
+- Instead, incorporate topic transitions naturally into the first sentence:
+  ✅ "In international developments, the United Nations..."
+  ✅ "Turning to professional basketball, the Dallas Mavericks..."
+  ✅ "On the automotive front, Tesla announced..."
+  ❌ "World News. The United Nations..."
+  ❌ "NBA. The Dallas Mavericks..."
 - NO editorializing or speculation
 
 NEWS CONTENT BY TOPIC:
