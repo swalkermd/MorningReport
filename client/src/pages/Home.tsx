@@ -5,7 +5,7 @@ import { ReportDisplay } from "@/components/ReportDisplay";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import sunriseImage from "@assets/903734B3-4188-4987-A861-01FF54E70BFA_1762622737517.jpeg";
+import sunriseImage from "@assets/903734B3-4188-4987-A861-01FF54E70BFA_1762655103033.jpeg";
 
 export default function Home() {
   const { data: report, isLoading, error } = useQuery<Report>({
