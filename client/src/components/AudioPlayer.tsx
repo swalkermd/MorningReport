@@ -20,6 +20,7 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [currentReport, setCurrentReport] = useState<string | null | undefined>(audioPath);
   const loadedAudioPathRef = useRef<string | null>(null);
+  const introEndedHandlerRef = useRef<(() => void) | null>(null);
   
   // Use audioPaths array if available, otherwise fall back to single audioPath
   // Memoize to prevent effect from retriggering on every render
@@ -35,6 +36,12 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
     }
     
     return () => {
+      // Clean up event listeners
+      if (introEndedHandlerRef.current && introAudioRef.current) {
+        introAudioRef.current.removeEventListener("ended", introEndedHandlerRef.current);
+        introEndedHandlerRef.current = null;
+      }
+      
       if (introAudioRef.current) {
         introAudioRef.current.pause();
         introAudioRef.current = null;
@@ -193,28 +200,21 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
     if (!intro || !main) return;
 
     if (isPlaying) {
+      // Clear any fade intervals
       if (fadeIntervalRef.current) {
         clearInterval(fadeIntervalRef.current);
         fadeIntervalRef.current = null;
       }
 
-      const currentlyPlaying = isIntroPlaying ? intro : main;
-      const fadeSteps = 10;
-      const fadeInterval = 50;
-      const volumeDecrement = currentlyPlaying.volume / fadeSteps;
-
-      fadeIntervalRef.current = setInterval(() => {
-        if (currentlyPlaying.volume > volumeDecrement) {
-          currentlyPlaying.volume = Math.max(0, currentlyPlaying.volume - volumeDecrement);
-        } else {
-          currentlyPlaying.volume = 0;
-          currentlyPlaying.pause();
-          if (fadeIntervalRef.current) {
-            clearInterval(fadeIntervalRef.current);
-            fadeIntervalRef.current = null;
-          }
-        }
-      }, fadeInterval);
+      // Immediately stop both audio elements
+      intro.pause();
+      main.pause();
+      
+      // Remove any pending event listeners
+      if (introEndedHandlerRef.current) {
+        intro.removeEventListener("ended", introEndedHandlerRef.current);
+        introEndedHandlerRef.current = null;
+      }
 
       setIsPlaying(false);
       setIsIntroPlaying(false);
@@ -280,7 +280,13 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
           }, fadeOutStart);
         }
 
-        intro.addEventListener("ended", async () => {
+        // Remove any existing event listener before adding a new one
+        if (introEndedHandlerRef.current) {
+          intro.removeEventListener("ended", introEndedHandlerRef.current);
+        }
+        
+        // Create and store the event handler
+        introEndedHandlerRef.current = async () => {
           setIsIntroPlaying(false);
           if (!isPlaying) return;
           
@@ -293,7 +299,9 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
             console.error("Error playing main audio:", err);
             setIsPlaying(false);
           }
-        }, { once: true });
+        };
+        
+        intro.addEventListener("ended", introEndedHandlerRef.current, { once: true });
 
       } catch (err) {
         console.error("Error playing intro audio:", err);
