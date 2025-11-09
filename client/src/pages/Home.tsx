@@ -88,7 +88,7 @@ function NoReportState() {
   return (
     <div className="text-center max-w-md" data-testid="text-no-report">
       <p className="text-muted-foreground">
-        No report available yet. Check back at 6:00 AM PST for today's briefing.
+        No report available yet. Check back at 5:30 AM PST for today's briefing.
       </p>
     </div>
   );

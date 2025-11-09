@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Play, Pause } from "lucide-react";
 import introMusicPath from "@assets/news-intro-344332_1762626212380.mp3";
 
@@ -14,6 +15,9 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isIntroPlaying, setIsIntroPlaying] = useState(false);
   const [currentSegment, setCurrentSegment] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [segmentDurations, setSegmentDurations] = useState<number[]>([]);
 
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const mainAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -29,6 +33,63 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
     () => audioPaths && audioPaths.length > 0 ? audioPaths : (audioPath ? [audioPath] : []),
     [audioPaths, audioPath]
   );
+
+  // Load durations for all segments
+  useEffect(() => {
+    const loadDurations = async () => {
+      const durations: number[] = [];
+      
+      for (const path of audioSegments) {
+        const audio = new Audio(path);
+        audio.playbackRate = 1.1;
+        
+        try {
+          await new Promise<void>((resolve) => {
+            let resolved = false;
+            let timeoutId: NodeJS.Timeout | null = null;
+            
+            const cleanup = (duration: number) => {
+              if (!resolved) {
+                resolved = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                durations.push(duration);
+                resolve();
+              }
+            };
+            
+            const handleMetadata = () => {
+              const dur = (audio.duration && !isNaN(audio.duration)) ? audio.duration : 0;
+              cleanup(dur);
+            };
+            
+            const handleError = () => {
+              cleanup(0);
+            };
+            
+            const handleTimeout = () => {
+              cleanup(0);
+            };
+            
+            audio.addEventListener('loadedmetadata', handleMetadata, { once: true });
+            audio.addEventListener('error', handleError, { once: true });
+            
+            // Timeout after 5 seconds
+            timeoutId = setTimeout(handleTimeout, 5000);
+          });
+        } catch (error) {
+          durations.push(0);
+        }
+      }
+      
+      setSegmentDurations(durations);
+      const totalDuration = durations.reduce((sum, d) => sum + d, 0);
+      setDuration(totalDuration);
+    };
+    
+    if (audioSegments.length > 0) {
+      loadDurations();
+    }
+  }, [audioSegments]);
 
   useEffect(() => {
     if (!introAudioRef.current) {
@@ -195,6 +256,87 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
     }
   }, [currentSegment, isPlaying, isIntroPlaying]);
 
+  // Update progress bar while playing - calculate total time across all segments
+  useEffect(() => {
+    const updateProgress = () => {
+      const main = mainAudioRef.current;
+      if (main && !isIntroPlaying && segmentDurations.length > 0) {
+        // Calculate elapsed time from previous segments
+        const elapsedFromPreviousSegments = segmentDurations
+          .slice(0, currentSegment)
+          .reduce((sum, d) => sum + d, 0);
+        
+        // Add current position in current segment
+        const totalElapsed = elapsedFromPreviousSegments + main.currentTime;
+        setCurrentTime(totalElapsed);
+      } else if (isIntroPlaying) {
+        // During intro, show elapsed time from previous segments only
+        const elapsedFromPreviousSegments = segmentDurations
+          .slice(0, currentSegment)
+          .reduce((sum, d) => sum + d, 0);
+        setCurrentTime(elapsedFromPreviousSegments);
+      }
+    };
+
+    if (isPlaying || isIntroPlaying) {
+      const interval = setInterval(updateProgress, 100);
+      return () => clearInterval(interval);
+    }
+  }, [isPlaying, isIntroPlaying, currentSegment, segmentDurations]);
+
+  const handleSeek = (value: number[]) => {
+    const main = mainAudioRef.current;
+    if (!main || isIntroPlaying || segmentDurations.length === 0) return;
+    
+    const targetTime = value[0];
+    let accumulatedTime = 0;
+    let targetSegment = 0;
+    let timeInSegment = 0;
+    
+    // Find which segment this time falls into
+    for (let i = 0; i < segmentDurations.length; i++) {
+      if (targetTime <= accumulatedTime + segmentDurations[i]) {
+        targetSegment = i;
+        timeInSegment = targetTime - accumulatedTime;
+        break;
+      }
+      accumulatedTime += segmentDurations[i];
+    }
+    
+    // Ensure targetSegment is within bounds
+    targetSegment = Math.min(targetSegment, audioSegments.length - 1);
+    targetSegment = Math.max(0, targetSegment);
+    
+    // Ensure timeInSegment doesn't exceed segment duration
+    if (segmentDurations[targetSegment]) {
+      timeInSegment = Math.min(timeInSegment, segmentDurations[targetSegment]);
+    }
+    
+    // If seeking to a different segment, change segment
+    if (targetSegment !== currentSegment) {
+      setCurrentSegment(targetSegment);
+      loadedAudioPathRef.current = null; // Force reload of new segment
+      
+      // Wait for new segment to load, then seek
+      setTimeout(() => {
+        if (mainAudioRef.current) {
+          mainAudioRef.current.currentTime = timeInSegment;
+          setCurrentTime(targetTime);
+        }
+      }, 100);
+    } else {
+      // Same segment, just seek within it
+      main.currentTime = timeInSegment;
+      setCurrentTime(targetTime);
+    }
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const handlePlayPause = async () => {
     if (audioSegments.length === 0) return;
 
@@ -351,23 +493,41 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
   }
 
   return (
-    <Button
-      className="w-full h-12 gap-3 text-base border-2 border-[#8B4513]"
-      variant="default"
-      onClick={handlePlayPause}
-      data-testid={testId}
-    >
-      {isPlaying ? (
-        <>
-          <Pause className="h-5 w-5" />
-          Pause Report
-        </>
-      ) : (
-        <>
-          <Play className="h-5 w-5" />
-          Play Report
-        </>
-      )}
-    </Button>
+    <div className="w-full space-y-2">
+      <Button
+        className="w-full h-12 gap-3 text-base border-2 border-[#8B4513]"
+        variant="default"
+        onClick={handlePlayPause}
+        data-testid={testId}
+      >
+        {isPlaying ? (
+          <>
+            <Pause className="h-5 w-5" />
+            Pause Report
+          </>
+        ) : (
+          <>
+            <Play className="h-5 w-5" />
+            Play Report
+          </>
+        )}
+      </Button>
+      
+      <div className="w-full space-y-1">
+        <Slider
+          value={[currentTime]}
+          max={duration || 100}
+          step={0.1}
+          onValueChange={handleSeek}
+          disabled={isIntroPlaying || !duration}
+          className="w-full"
+          data-testid="audio-progress-slider"
+        />
+        <div className="flex justify-between text-xs text-muted-foreground px-1">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+    </div>
   );
 }
