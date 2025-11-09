@@ -1,4 +1,7 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Copy, Check } from "lucide-react";
+import { useState } from "react";
 
 interface ReportDisplayProps {
   content: string;
@@ -7,9 +10,43 @@ interface ReportDisplayProps {
 }
 
 export function ReportDisplay({ content, className = "", "data-testid": testId }: ReportDisplayProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+    }
+  };
+
   return (
     <Card className={`flex-1 min-h-0 flex flex-col border-card-border ${className}`} data-testid={testId}>
-      <CardContent className="p-4 md:p-6 flex-1 overflow-y-auto">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 px-4 md:px-6 pt-4 md:pt-6">
+        <h3 className="text-sm font-medium text-muted-foreground">Report Text</h3>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleCopy}
+          className="gap-2"
+          data-testid="button-copy-report"
+        >
+          {copied ? (
+            <>
+              <Check className="h-4 w-4" />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-4 w-4" />
+              Copy
+            </>
+          )}
+        </Button>
+      </CardHeader>
+      <CardContent className="p-4 md:p-6 pt-0 flex-1 overflow-y-auto">
         <div 
           className="prose prose-sm max-w-none text-foreground leading-7"
           data-testid="text-report-content"
