@@ -24,19 +24,20 @@ export function ReportDisplay({ content, className = "", "data-testid": testId }
 
   return (
     <Card className={`flex-1 min-h-0 flex flex-col border-card-border relative ${className}`} data-testid={testId}>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 pb-2 border-b border-card-border">
-        <h3 className="font-semibold text-base">Report Text</h3>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-2 border-b border-card-border">
+        <h3 className="font-semibold text-sm">Report Text</h3>
         <Button
           size="icon"
           variant="ghost"
           onClick={handleCopy}
           data-testid="button-copy-report"
           title={copied ? "Copied!" : "Copy to clipboard"}
+          className="h-7 w-7"
         >
           {copied ? (
-            <Check className="h-4 w-4" />
+            <Check className="h-3.5 w-3.5" />
           ) : (
-            <Copy className="h-4 w-4" />
+            <Copy className="h-3.5 w-3.5" />
           )}
         </Button>
       </CardHeader>
