@@ -140,6 +140,73 @@ async function attemptGenerateReport(
   previousReports: string[],
   reportDate: Date
 ): Promise<string> {
+  // Try up to 2 attempts to generate a properly-sized report
+  const maxAttempts = 2;
+  let lastWordCount = 0;
+  const topicCount = newsContent.length;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const isRetry = attempt > 1;
+    
+    try {
+      const report = await generateReportAttempt(
+        newsContent,
+        previousReports,
+        reportDate,
+        isRetry ? lastWordCount : undefined
+      );
+      
+      // Validate length
+      const wordCount = report.split(/\s+/).length;
+      console.log(`[Report Length] Generated ${wordCount} words (target: 1500-2000) [attempt ${attempt}/${maxAttempts}]`);
+      
+      // Dynamic minimum based on available topics
+      // Testing (6 topics, sparse data): 700 words minimum (2-3 min audio)
+      // Production (10+ topics, fresh data): 1200 words minimum (4-6 min audio)  
+      // Full production (13 topics): Will easily hit 1500-2000 words
+      const minimumWords = topicCount < 10 ? 700 : 1200;
+      const targetWords = 1500;
+      
+      console.log(`[Report Length] Minimum: ${minimumWords} words (${topicCount} topics), Target: ${targetWords} words`);
+      
+      if (wordCount >= targetWords) {
+        console.log(`[Report Length] ✓ Report meets target length (${wordCount} words >= ${targetWords})`);
+        return report;
+      } else if (wordCount >= minimumWords) {
+        console.log(`[Report Length] ✓ Report meets minimum length (${wordCount} words >= ${minimumWords}, target: ${targetWords})`);
+        return report;
+      }
+      
+      // Report too short - prepare for retry
+      lastWordCount = wordCount;
+      console.warn(`[Report Length] ⚠️  Report too short (${wordCount} words < ${minimumWords} minimum, target: ${targetWords})`);
+      
+      if (attempt < maxAttempts) {
+        console.log(`[Report Length] Retrying with expansion instructions...`);
+      } else {
+        console.error(`[Report Length] ❌ Failed to generate ${minimumWords}+ word report after ${maxAttempts} attempts`);
+        throw new Error(`Report generation failed: only ${wordCount} words after ${maxAttempts} attempts (minimum: ${minimumWords}, target: ${targetWords})`);
+      }
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+      // For non-length errors, rethrow immediately
+      if (!(error instanceof Error) || !error.message.includes('Report generation failed')) {
+        throw error;
+      }
+    }
+  }
+  
+  throw new Error('Report generation failed after all attempts');
+}
+
+async function generateReportAttempt(
+  newsContent: NewsContent[],
+  previousReports: string[],
+  reportDate: Date,
+  previousWordCount?: number
+): Promise<string> {
   // Analyze topic coverage in previous reports
   const { underrepresentedTopics, topicCoverageSummary } = analyzeTopicCoverage(
     newsContent, 
@@ -199,7 +266,43 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
   
   const formattedDate = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)}, ${year}`;
 
-  const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, numbers, and citations.
+  // Calculate required words per topic
+  const topicCount = newsContent.length;
+  const wordsPerTopic = Math.ceil(1600 / topicCount); // Aim for 1600 to provide buffer
+  
+  // Build retry-specific expansion instruction if this is a retry attempt
+  const retryExpansionPrompt = previousWordCount ? `
+🚨🚨🚨 CRITICAL LENGTH FAILURE - IMMEDIATE EXPANSION REQUIRED 🚨🚨🚨
+
+Your previous draft had only ${previousWordCount} words. This is too short.
+The target is 1500-2000 words for a comprehensive audio briefing. You need at least ${wordsPerTopic} words PER TOPIC.
+
+MATHEMATICAL REQUIREMENT:
+You have ${topicCount} topics available. To reach 1500+ words total:
+- You MUST write ${wordsPerTopic}+ words PER TOPIC
+- That means 3-4 FULL paragraphs for EACH topic
+- Each paragraph should be 60-80 words minimum
+
+MANDATORY EXPANSION TECHNIQUES:
+1. START each topic with context/background (1 paragraph)
+2. DETAIL the specific facts from source articles (1-2 paragraphs)  
+3. EXPLAIN the significance and implications (1 paragraph)
+4. ADD transitional phrases between topics
+5. INCLUDE relevant details: names, dates, numbers, locations, quotes
+6. ELABORATE on how this impacts people/industry/society
+
+DO NOT write brief summaries. This is a COMPREHENSIVE audio briefing, not a headline list.
+Your previous ${previousWordCount}-word draft was rejected. Write ${wordsPerTopic}+ words per topic NOW.
+` : `
+
+📊 LENGTH REQUIREMENT (STRICTLY ENFORCED):
+You have ${topicCount} topics. You MUST write ${wordsPerTopic}+ words PER TOPIC to reach the 1500-2000 word target.
+- That means 3-4 full paragraphs per topic
+- Include context, details, analysis, and implications
+- This is a comprehensive audio briefing, not a headline summary
+`;
+
+  const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, numbers, and citations.${retryExpansionPrompt}
 
 SENSITIVE CONTENT POLICY:
 - You MUST cover crime, violence, and other difficult news topics professionally
@@ -310,19 +413,39 @@ Write your news report now. Remember:
 2. Cite sources only when pertinent to the story
 3. If a story can't meet quality standards, skip it entirely`;
 
+  // Enhanced system message with non-negotiable requirements
+  const systemMessage = `You are a professional news anchor writing comprehensive daily audio news briefings for Morning Report.
+
+🔴 ABSOLUTE REQUIREMENTS (FAILURE = REJECTION):
+1. LENGTH: MINIMUM 1500 words, target 1500-2000 words. This is for a 5-10 minute AUDIO briefing.
+   - Short reports (under 1500 words) will be REJECTED and you will be asked to rewrite
+   - Write 3-4 FULL paragraphs (250+ words) per topic
+   - This is NOT a headline summary - it's a comprehensive audio briefing
+   
+2. STRUCTURE: 
+   - Start EXACTLY: "Here's your morning report for [date]."
+   - End EXACTLY: "That's it for the morning report. Have a great day!"
+   - Include "On This Day in History" (1-2 sentences) before closing
+   
+3. QUALITY: Every story requires specific names, numbers, locations, dates - NO generic phrases
+   
+4. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
+
+These are HARD requirements. Reports under 1500 words are automatically rejected.`;
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
       {
         role: "system",
-        content: "You are a professional news anchor writing daily audio news briefings. Write in a clear, engaging style suitable for spoken delivery.",
+        content: systemMessage,
       },
       {
         role: "user",
         content: prompt,
       },
     ],
-    max_completion_tokens: 3500,
+    max_completion_tokens: 4500, // Increased for longer reports
   });
 
   const content = response.choices[0].message.content || "";
@@ -338,15 +461,6 @@ Write your news report now. Remember:
     const error: any = new Error("GPT refused to generate content due to content policy");
     error.response = { choices: [{ message: { content } }] };
     throw error;
-  }
-  
-  // Validate report length
-  const wordCount = content.split(/\s+/).length;
-  console.log(`[Report Length] Generated ${wordCount} words (target: 1500-2000)`);
-  
-  if (wordCount < 1500) {
-    console.warn(`[Report Length] WARNING: Report too short (${wordCount} words < 1500 minimum)`);
-    // Could implement retry with extended prompt here in future iteration
   }
   
   // Apply political title corrections (deterministic post-processing)
