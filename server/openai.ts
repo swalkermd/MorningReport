@@ -66,6 +66,35 @@ function analyzeTopicCoverage(newsContent: NewsContent[], previousReports: strin
   };
 }
 
+// Keywords that may trigger safety filters - used for retry fallback only
+const SENSITIVE_KEYWORDS = [
+  'dismembered', 'beheaded', 'mutilated', 'decapitated',
+  'massacre', 'slaughtered', 'tortured', 'executed',
+  'bodies found', 'remains discovered', 'corpse'
+];
+
+/**
+ * Filters out articles containing highly graphic terms
+ * Used as fallback when GPT refuses to generate content
+ */
+function filterSensitiveArticles(newsContent: NewsContent[]): NewsContent[] {
+  return newsContent.map(topic => ({
+    ...topic,
+    articles: topic.articles.filter(article => {
+      const combined = `${article.title} ${article.summary}`.toLowerCase();
+      const hasSensitiveContent = SENSITIVE_KEYWORDS.some(keyword => 
+        combined.includes(keyword.toLowerCase())
+      );
+      
+      if (hasSensitiveContent) {
+        console.warn(`[Content Filter] Filtered sensitive article: "${article.title.substring(0, 60)}..."`);
+      }
+      
+      return !hasSensitiveContent;
+    })
+  })).filter(topic => topic.articles.length > 0);
+}
+
 export async function generateNewsReport(
   newsContent: NewsContent[],
   previousReports: string[],
@@ -78,9 +107,42 @@ export async function generateNewsReport(
     throw new Error('No valid news articles available - cannot generate quality report');
   }
   
+  // Try generation with full content first
+  try {
+    return await attemptGenerateReport(validNewsContent, previousReports, reportDate);
+  } catch (error: any) {
+    // Check if response contains content refusal
+    const errorMessage = error?.message || '';
+    const responseContent = error?.response?.choices?.[0]?.message?.content || '';
+    const isContentRefusal = errorMessage.includes("can't provide") || 
+                            errorMessage.includes("cannot provide") ||
+                            responseContent.includes("I'm sorry, but I can't provide");
+    
+    if (isContentRefusal) {
+      console.warn('[GPT Refusal] Content policy triggered, retrying with filtered content...');
+      const filteredContent = filterSensitiveArticles(validNewsContent);
+      
+      if (filteredContent.length === 0) {
+        throw new Error("All articles filtered out due to sensitive content - cannot generate report");
+      }
+      
+      console.log(`[GPT Retry] Retrying with ${filteredContent.length} topics after filtering sensitive content`);
+      return await attemptGenerateReport(filteredContent, previousReports, reportDate);
+    }
+    
+    // Re-throw if it's not a content refusal
+    throw error;
+  }
+}
+
+async function attemptGenerateReport(
+  newsContent: NewsContent[],
+  previousReports: string[],
+  reportDate: Date
+): Promise<string> {
   // Analyze topic coverage in previous reports
   const { underrepresentedTopics, topicCoverageSummary } = analyzeTopicCoverage(
-    validNewsContent, 
+    newsContent, 
     previousReports
   );
   
@@ -92,7 +154,7 @@ export async function generateNewsReport(
     console.log(`[Topic Balance] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(', ')}`);
   }
   
-  const newsContentStr = validNewsContent
+  const newsContentStr = newsContent
     .map((section) => {
       const articlesStr = section.articles
         .map((article) => {
@@ -139,11 +201,22 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
 
   const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, numbers, and citations.
 
+SENSITIVE CONTENT POLICY:
+- You MUST cover crime, violence, and other difficult news topics professionally
+- Use neutral, factual tone without graphic details
+- Focus on facts: who, what, where, when, why
+- Avoid sensationalism while maintaining editorial integrity
+- Example: "Authorities in Dubai are investigating after the remains of two individuals were discovered" instead of graphic descriptions
+
 CRITICAL REQUIREMENTS:
 - Start with EXACTLY: "Here's your morning report for ${formattedDate}."
 - Include a brief "On This Day in History" section (1-2 sentences) near the end, before the closing
 - End with EXACTLY: "That's it for the morning report. Have a great day!"
-- MUST be approximately 1000 words (target length for comprehensive audio briefing)
+- MUST be 1500-2000 words (target length for 5-10 minute audio briefing)
+- MINIMUM 1500 words - this is NON-NEGOTIABLE for proper audio duration
+- Each topic should receive 2-3 paragraphs of coverage (150-200 words per topic)
+- Include transitional phrases, context, and analysis to reach target length
+- If you have 6-8 topics, aim for 200-250 words per topic to hit 1500+ total
 - EVERY story MUST include SPECIFIC details: names, numbers, locations, dates, companies
 - ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
 - REJECT generic content - if source data lacks specifics, skip that topic entirely
@@ -151,12 +224,12 @@ CRITICAL REQUIREMENTS:
 - Use current, accurate titles for political figures (e.g., "President", "President-elect", not outdated titles)
 
 🔴 FRESHNESS REQUIREMENT (CRITICAL):
-- ONLY include stories published within the last 24 hours
-- REJECT any article that references events from more than 1 day ago
-- Check publication dates in source metadata - if marked older than yesterday, SKIP IT
-- For sports (NBA, etc.): Only include games/events from yesterday or today
-- For announcements: Must be from yesterday or today
-- Better to skip a topic entirely than include stale news
+- Breaking news topics (World, US, NBA, Redlands, Travel): ONLY stories from last 24 hours
+- Tech/Science topics (AI, EVs, Robotics, Anti-Aging, eVTOL, etc.): Stories from last 3-4 days acceptable
+- Check publication dates in source metadata - respect the tiered freshness windows
+- For sports (NBA): Only include games/events from yesterday or today
+- For tech announcements: Recent launches/updates within the past few days
+- Better to skip a topic entirely than include genuinely stale news
 
 NATIONAL NEWS QUALITY STANDARDS:
 - Include SPECIFIC names (people, companies, organizations)
@@ -243,13 +316,31 @@ Write your news report now. Remember:
         content: prompt,
       },
     ],
-    max_completion_tokens: 2500,
+    max_completion_tokens: 3500,
   });
 
   const content = response.choices[0].message.content || "";
   
   if (!content || content.trim().length === 0) {
     throw new Error("OpenAI returned an empty response");
+  }
+  
+  // Detect content refusal in response
+  if (content.includes("I'm sorry, but I can't provide") || 
+      content.includes("I cannot provide") ||
+      content.includes("I'm unable to")) {
+    const error: any = new Error("GPT refused to generate content due to content policy");
+    error.response = { choices: [{ message: { content } }] };
+    throw error;
+  }
+  
+  // Validate report length
+  const wordCount = content.split(/\s+/).length;
+  console.log(`[Report Length] Generated ${wordCount} words (target: 1500-2000)`);
+  
+  if (wordCount < 1500) {
+    console.warn(`[Report Length] WARNING: Report too short (${wordCount} words < 1500 minimum)`);
+    // Could implement retry with extended prompt here in future iteration
   }
 
   return content;

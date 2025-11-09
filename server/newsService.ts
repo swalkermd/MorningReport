@@ -3,28 +3,36 @@ import OpenAI from "openai";
 import { promises as fs } from "fs";
 import path from "path";
 
+// Topic freshness tiers
+// Tier 1 (Breaking News): 24 hours - time-sensitive news that goes stale quickly
+// Tier 2 (Tech/Science): 96 hours (4 days) - slower-moving tech/science stories
+const FRESHNESS_TIERS = {
+  breaking: 24, // hours
+  tech: 96,     // hours (4 days)
+};
+
 // News topics configuration - refined for better search results
 export const NEWS_TOPICS = [
-  { name: "World News", query: "breaking world news today major events" },
-  { name: "US News", query: "united states news headlines today" },
-  { name: "Redlands CA Local News", query: "Redlands California news" },
-  { name: "NBA", query: "NBA games highlights players standings" },
-  { name: "AI & Machine Learning", query: "artificial intelligence breakthrough announcements today" },
-  { name: "Electric Vehicles", query: "electric vehicle EV automotive news announcements" },
-  { name: "Autonomous Driving", query: "self-driving autonomous vehicle technology news" },
-  { name: "Humanoid Robots", query: "humanoid robot development boston dynamics tesla optimus" },
-  { name: "eVTOL & Flying Vehicles", query: "eVTOL flying car urban air mobility news" },
-  { name: "Tech Gadgets", query: "consumer technology gadget product launches 2025" },
-  { name: "Anti-Aging Science", query: "longevity anti-aging research breakthrough" },
-  { name: "Virtual Medicine", query: "telemedicine digital health technology news" },
-  { name: "Travel", query: "travel industry airlines destinations news today" },
+  { name: "World News", query: "breaking world news today major events", freshness: FRESHNESS_TIERS.breaking },
+  { name: "US News", query: "united states news headlines today", freshness: FRESHNESS_TIERS.breaking },
+  { name: "Redlands CA Local News", query: "Redlands California news", freshness: FRESHNESS_TIERS.breaking },
+  { name: "NBA", query: "NBA games highlights players standings", freshness: FRESHNESS_TIERS.breaking },
+  { name: "AI & Machine Learning", query: "artificial intelligence breakthrough announcements today", freshness: FRESHNESS_TIERS.tech },
+  { name: "Electric Vehicles", query: "electric vehicle EV automotive news announcements", freshness: FRESHNESS_TIERS.tech },
+  { name: "Autonomous Driving", query: "self-driving autonomous vehicle technology news", freshness: FRESHNESS_TIERS.tech },
+  { name: "Humanoid Robots", query: "humanoid robot development boston dynamics tesla optimus", freshness: FRESHNESS_TIERS.tech },
+  { name: "eVTOL & Flying Vehicles", query: "eVTOL flying car urban air mobility news", freshness: FRESHNESS_TIERS.tech },
+  { name: "Tech Gadgets", query: "consumer technology gadget product launches 2025", freshness: FRESHNESS_TIERS.tech },
+  { name: "Anti-Aging Science", query: "longevity anti-aging research breakthrough", freshness: FRESHNESS_TIERS.tech },
+  { name: "Virtual Medicine", query: "telemedicine digital health technology news", freshness: FRESHNESS_TIERS.tech },
+  { name: "Travel", query: "travel industry airlines destinations news today", freshness: FRESHNESS_TIERS.breaking },
 ];
 
 /**
  * Fetches news from Brave Search API
  * Primary search source with generous free tier (2,000 queries/month)
  */
-async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Promise<NewsContent> {
+async function scrapeNewsBraveSearch(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   
   if (!apiKey) {
@@ -71,17 +79,41 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Pr
         return hasTitle && hasDescription && hasUrl;
       })
       .map((result: any) => {
-        // Try to parse timestamp from Brave Search result
+        // Parse timestamp from Brave Search result
         let publishedAt: string | null = null;
         
         if (result.age) {
-          try {
-            const parsed = new Date(result.age);
-            if (!isNaN(parsed.getTime())) {
-              publishedAt = parsed.toISOString();
+          // Try to parse relative time strings from Brave ("14 minutes ago", "2 hours ago", "1 day ago")
+          const relativeTimeMatch = result.age.match(/^(\d+)\s+(minute|hour|day)s?\s+ago$/i);
+          
+          if (relativeTimeMatch) {
+            const amount = parseInt(relativeTimeMatch[1]);
+            const unit = relativeTimeMatch[2].toLowerCase();
+            const now = new Date();
+            
+            let millisAgo = 0;
+            if (unit === 'minute') {
+              millisAgo = amount * 60 * 1000;
+            } else if (unit === 'hour') {
+              millisAgo = amount * 60 * 60 * 1000;
+            } else if (unit === 'day') {
+              millisAgo = amount * 24 * 60 * 60 * 1000;
             }
-          } catch {
-            // Could not parse age field
+            
+            if (millisAgo > 0) {
+              const articleDate = new Date(now.getTime() - millisAgo);
+              publishedAt = articleDate.toISOString();
+            }
+          } else {
+            // Try parsing as absolute date
+            try {
+              const parsed = new Date(result.age);
+              if (!isNaN(parsed.getTime())) {
+                publishedAt = parsed.toISOString();
+              }
+            } catch {
+              // Could not parse
+            }
           }
         }
         
@@ -107,8 +139,8 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Pr
         const now = new Date();
         const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
         
-        if (ageHours > 24) {
-          console.log(`[BraveSearch] Discarded stale article (${ageHours.toFixed(1)}h old): "${article.title.substring(0, 50)}"`);
+        if (ageHours > topic.freshness) {
+          console.log(`[BraveSearch] Discarded stale article (${ageHours.toFixed(1)}h old, max ${topic.freshness}h): "${article.title.substring(0, 50)}"`);
           return false;
         }
         
@@ -138,7 +170,7 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string }): Pr
 /**
  * Fetches news from CurrentsAPI
  */
-async function scrapeNewsCurrentsAPI(topic: { name: string; query: string }): Promise<NewsContent> {
+async function scrapeNewsCurrentsAPI(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.CURRENTS_API_KEY;
   
   if (!apiKey) {
@@ -146,10 +178,10 @@ async function scrapeNewsCurrentsAPI(topic: { name: string; query: string }): Pr
     return { topic: topic.name, articles: [] };
   }
   
-  // Calculate 24-hour window (ISO format: YYYY-MM-DD for CurrentsAPI)
+  // Calculate freshness window based on topic tier (RFC 3339 format for CurrentsAPI)
   const now = new Date();
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const startDate = oneDayAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+  const startTime = new Date(now.getTime() - topic.freshness * 60 * 60 * 1000);
+  const startDate = startTime.toISOString(); // RFC 3339 format: 2025-11-09T06:00:00.000Z
   
   try {
     const response = await fetch(
@@ -222,7 +254,7 @@ async function scrapeNewsOpenAI(topic: { name: string; query: string }): Promise
  * Fetches real news for a given topic using NewsAPI with robust error handling
  * Returns empty articles array if real news unavailable to prevent vague content
  */
-export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string }): Promise<NewsContent> {
+export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.NEWSAPI_KEY;
   
   if (!apiKey) {
@@ -230,10 +262,10 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
     return { topic: topic.name, articles: [] };
   }
   
-  // Calculate 24-hour window (ISO format for NewsAPI)
+  // Calculate freshness window based on topic tier (ISO format for NewsAPI)
   const now = new Date();
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const fromDate = oneDayAgo.toISOString();
+  const startTime = new Date(now.getTime() - topic.freshness * 60 * 60 * 1000);
+  const fromDate = startTime.toISOString();
   
   const maxRetries = 2;
   let lastError: Error | null = null;
@@ -323,10 +355,10 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
 }
 
 /**
- * Validates article freshness - rejects articles older than 24 hours
+ * Validates article freshness - rejects articles older than the specified max age
  * Returns true if article is fresh, false if stale
  */
-function isArticleFresh(article: any): boolean {
+function isArticleFresh(article: any, maxAgeHours: number = 24): boolean {
   if (!article.publishedAt) {
     console.warn(`[Freshness] Article missing publishedAt timestamp: ${article.title?.substring(0, 50)}`);
     return false; // Reject articles without timestamps
@@ -337,9 +369,9 @@ function isArticleFresh(article: any): boolean {
     const now = new Date();
     const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
     
-    // Reject articles older than 24 hours
-    if (ageHours > 24) {
-      console.log(`[Freshness] Rejected stale article (${ageHours.toFixed(1)}h old): ${article.title?.substring(0, 60)}`);
+    // Reject articles older than max age
+    if (ageHours > maxAgeHours) {
+      console.log(`[Freshness] Rejected stale article (${ageHours.toFixed(1)}h old, max ${maxAgeHours}h): ${article.title?.substring(0, 60)}`);
       return false;
     }
     
@@ -393,7 +425,7 @@ function isDuplicate(article1: any, article2: any): boolean {
  * Features: deduplication, quality filtering, and recency sorting
  * Falls back to CurrentsAPI only if both primary sources fail
  */
-export async function scrapeNews(topic: { name: string; query: string }): Promise<NewsContent> {
+export async function scrapeNews(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   console.log(`\n[Multi-Source] Fetching news for: ${topic.name}`);
   
   // Call BOTH Brave Search AND NewsAPI in parallel for maximum coverage
@@ -414,15 +446,15 @@ export async function scrapeNews(topic: { name: string; query: string }): Promis
   }
   
   if (mergedArticles.length > 0) {
-    // Filter out stale articles (older than 24 hours)
-    const freshArticles = mergedArticles.filter(isArticleFresh);
+    // Filter out stale articles based on topic's freshness tier
+    const freshArticles = mergedArticles.filter(article => isArticleFresh(article, topic.freshness));
     
     if (freshArticles.length === 0) {
-      console.warn(`[Multi-Source] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered out as stale (>24h old)`);
+      console.warn(`[Multi-Source] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered out as stale (>${topic.freshness}h old)`);
       // Fall back to CurrentsAPI
       const currentsResult = await scrapeNewsCurrentsAPI(topic);
       if (currentsResult.articles.length > 0) {
-        const freshCurrentsArticles = currentsResult.articles.filter(isArticleFresh);
+        const freshCurrentsArticles = currentsResult.articles.filter(article => isArticleFresh(article, topic.freshness));
         if (freshCurrentsArticles.length > 0) {
           console.log(`[Multi-Source] ✓ ${topic.name} - Using CurrentsAPI backup (${freshCurrentsArticles.length} fresh articles)`);
           return { topic: topic.name, articles: freshCurrentsArticles.slice(0, 4) };

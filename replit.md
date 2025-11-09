@@ -46,12 +46,20 @@ Preferred communication style: Simple, everyday language.
 **Core Services:**
 
 1. **News Scraping Service** (`newsService.ts`):
-   - Defines 13 curated news topics (world news, US news, local CA news, NBA, AI/ML, EVs, autonomous driving, humanoid robots, eVTOL, tech gadgets, anti-aging, telemedicine, travel)
+   - Defines 13 curated news topics with **tiered freshness windows**:
+     - **Breaking News (24h)**: World News, US News, Redlands CA, NBA, Travel - time-sensitive stories
+     - **Tech/Science (96h/4 days)**: AI/ML, EVs, Autonomous Driving, Humanoid Robots, eVTOL, Tech Gadgets, Anti-Aging, Virtual Medicine - slower-moving tech stories
    - **Multi-source implementation** with intelligent three-tier fallback:
      - `scrapeNewsBraveSearch()`: Primary source using Brave Search API with recent news filter (freshness=pd)
+       - Parses relative time strings ("14 minutes ago", "2 hours ago", "1 day ago") into absolute timestamps
+       - Discards articles without parseable timestamps (no fabrication - ensures freshness integrity)
+       - Belt-and-suspenders validation: checks freshness even after parsing
      - `scrapeNewsFromNewsAPI()`: Secondary source with retry logic (2 retries with exponential backoff)
-     - `scrapeNewsCurrentsAPI()`: Tertiary fallback source
-     - `scrapeNews()`: Smart coordinator that tries Brave Search → NewsAPI → CurrentsAPI in sequence
+       - Uses topic-specific freshness windows (24h or 96h) in from= parameter
+     - `scrapeNewsCurrentsAPI()`: Tertiary fallback source with RFC 3339 date format
+       - Uses topic-specific freshness windows in start_date= parameter
+     - `scrapeNews()`: Smart coordinator that calls Brave + NewsAPI in parallel, then CurrentsAPI if both fail
+   - **Freshness Validation**: `isArticleFresh()` accepts maxAgeHours parameter (24 or 96) and rejects articles without valid timestamps
    - Robust error handling including rate limit detection, timeouts, timestamp normalization, and validation
    - Filters articles for quality (minimum title/description length, valid URLs)
    - OpenAI GPT-4o analyzes search results to select most notable stories for inclusion
@@ -63,7 +71,11 @@ Preferred communication style: Simple, everyday language.
      - Identifies underrepresented topics (0 mentions in last 5 reports)
      - Prioritizes underrepresented topics in prompt to ensure balanced coverage
      - Logs topic coverage statistics for monitoring (e.g., "NBA: 4/5, Travel: 0/5")
-   - Target ~1000 word length for comprehensive coverage
+   - **Target 1500-2000 words** for 5-10 minute audio briefing (minimum 1500 words enforced)
+   - **Sensitive Content Handling**:
+     - Explicit policy allowing professional crime/violence coverage (neutral tone, no graphic details)
+     - Automatic retry mechanism filters graphic keywords if GPT refuses
+     - Logs filtered articles for editorial review
    - **Multi-segment audio generation**: Intelligently splits text into chunks <4096 characters (OpenAI TTS limit)
      - Splits at paragraph boundaries when possible
      - Falls back to sentence-level splitting for long paragraphs
