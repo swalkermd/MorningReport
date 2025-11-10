@@ -147,7 +147,7 @@ That's it for the morning report. Have a great day!`,
         await clearNewsCache();
       }
       
-      await generateDailyReport();
+      await generateDailyReport(forceRefresh);
       
       res.json({ 
         success: true, 

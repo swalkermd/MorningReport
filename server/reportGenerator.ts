@@ -4,9 +4,9 @@ import { scrapeAllNews, NEWS_TOPICS } from "./newsService";
 import { generateNewsReport, generateAudioFromText } from "./openai";
 import { promises as fs } from "fs";
 
-export async function generateDailyReport(): Promise<void> {
+export async function generateDailyReport(forceRefresh: boolean = false): Promise<void> {
   console.log("Step 1: Scraping news from all sources...");
-  const newsContent = await scrapeAllNews();
+  const newsContent = await scrapeAllNews(forceRefresh);
   
   const successfulTopics = newsContent.filter(content => content.articles.length > 0);
   console.log(`Step 2: Retrieved news for ${successfulTopics.length} topics`);
