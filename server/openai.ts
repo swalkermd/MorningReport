@@ -20,7 +20,7 @@ export interface NewsContent {
  * Analyzes previous reports to determine which topics haven't been covered recently
  * Ensures balanced coverage across all topics over a 5-report cycle
  */
-function analyzeTopicCoverage(newsContent: NewsContent[], previousReports: string[]): {
+export function analyzeTopicCoverage(newsContent: NewsContent[], previousReports: string[]): {
   underrepresentedTopics: string[];
   topicCoverageSummary: string;
 } {

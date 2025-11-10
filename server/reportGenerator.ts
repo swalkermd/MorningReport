@@ -5,8 +5,23 @@ import { generateNewsReport, generateAudioFromText } from "./openai";
 import { promises as fs } from "fs";
 
 export async function generateDailyReport(forceRefresh: boolean = false): Promise<void> {
+  // Get previous reports to identify underrepresented topics
+  const previousReports = await storage.getRecentReports(5);
+  const previousReportTexts = previousReports.map(r => r.content);
+  
+  // Analyze which topics need targeted attention
+  const { analyzeTopicCoverage } = await import("./openai");
+  const { underrepresentedTopics } = analyzeTopicCoverage(
+    NEWS_TOPICS.map(t => ({ topic: t.name, articles: [] })), 
+    previousReportTexts
+  );
+  
+  if (underrepresentedTopics.length > 0) {
+    console.log(`[Coverage] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(", ")}`);
+  }
+  
   console.log("Step 1: Scraping news from all sources...");
-  const newsContent = await scrapeAllNews(forceRefresh);
+  const newsContent = await scrapeAllNews(forceRefresh, underrepresentedTopics);
   
   const successfulTopics = newsContent.filter(content => content.articles.length > 0);
   console.log(`Step 2: Retrieved news for ${successfulTopics.length} topics`);
@@ -35,11 +50,7 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   }
   console.log('==============================\n');
   
-  // Get previous 5 reports for context
-  const previousReports = await storage.getRecentReports(5);
-  const previousReportTexts = previousReports.map(r => r.content);
-  
-  console.log(`Step 3: Found ${previousReports.length} previous reports for context`);
+  console.log(`Step 3: Using ${previousReports.length} previous reports for context`);
   console.log("Step 4: Generating AI news report...");
   
   // Set to 5:30 AM on the current day

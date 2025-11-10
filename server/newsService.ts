@@ -81,21 +81,21 @@ const FRESHNESS_TIERS = {
   tech: 96,     // hours (4 days)
 };
 
-// News topics configuration - refined for better search results
+// News topics configuration with primary and simplified fallback queries
 export const NEWS_TOPICS = [
-  { name: "World News", query: "breaking world news today major events", freshness: FRESHNESS_TIERS.breaking },
-  { name: "US News", query: "united states news headlines today", freshness: FRESHNESS_TIERS.breaking },
-  { name: "Redlands CA Local News", query: "Redlands California news", freshness: FRESHNESS_TIERS.breaking },
-  { name: "NBA", query: "NBA games highlights players standings", freshness: FRESHNESS_TIERS.breaking },
-  { name: "AI & Machine Learning", query: "artificial intelligence breakthrough announcements today", freshness: FRESHNESS_TIERS.tech },
-  { name: "Electric Vehicles", query: "electric vehicle EV automotive news announcements", freshness: FRESHNESS_TIERS.tech },
-  { name: "Autonomous Driving", query: "self-driving autonomous vehicle technology news", freshness: FRESHNESS_TIERS.tech },
-  { name: "Humanoid Robots", query: "humanoid robot development boston dynamics tesla optimus", freshness: FRESHNESS_TIERS.tech },
-  { name: "eVTOL & Flying Vehicles", query: "eVTOL flying car urban air mobility news", freshness: FRESHNESS_TIERS.tech },
-  { name: "Tech Gadgets", query: "consumer technology gadget product launches 2025", freshness: FRESHNESS_TIERS.tech },
-  { name: "Anti-Aging Science", query: "longevity anti-aging research breakthrough", freshness: FRESHNESS_TIERS.tech },
-  { name: "Virtual Medicine", query: "telemedicine digital health technology news", freshness: FRESHNESS_TIERS.tech },
-  { name: "Travel", query: "travel industry airlines destinations news today", freshness: FRESHNESS_TIERS.breaking },
+  { name: "World News", query: "breaking world news today major events", fallbackQuery: "world news", freshness: FRESHNESS_TIERS.breaking },
+  { name: "US News", query: "united states news headlines today", fallbackQuery: "USA news", freshness: FRESHNESS_TIERS.breaking },
+  { name: "Redlands CA Local News", query: "Redlands California news", fallbackQuery: "Redlands news", freshness: FRESHNESS_TIERS.breaking },
+  { name: "NBA", query: "NBA games highlights players", fallbackQuery: "NBA basketball", freshness: FRESHNESS_TIERS.breaking },
+  { name: "AI & Machine Learning", query: "artificial intelligence AI machine learning", fallbackQuery: "AI technology", freshness: FRESHNESS_TIERS.tech },
+  { name: "Electric Vehicles", query: "electric vehicle EV Tesla Rivian", fallbackQuery: "electric car", freshness: FRESHNESS_TIERS.tech },
+  { name: "Autonomous Driving", query: "self-driving autonomous vehicle", fallbackQuery: "self driving car", freshness: FRESHNESS_TIERS.tech },
+  { name: "Humanoid Robots", query: "humanoid robot Tesla Optimus", fallbackQuery: "robot technology", freshness: FRESHNESS_TIERS.tech },
+  { name: "eVTOL & Flying Vehicles", query: "flying car urban air mobility", fallbackQuery: "electric aircraft", freshness: FRESHNESS_TIERS.tech },
+  { name: "Tech Gadgets", query: "consumer technology gadget smartphone", fallbackQuery: "new tech products", freshness: FRESHNESS_TIERS.tech },
+  { name: "Anti-Aging Science", query: "longevity anti-aging research", fallbackQuery: "aging research", freshness: FRESHNESS_TIERS.tech },
+  { name: "Virtual Medicine", query: "telemedicine digital health telehealth", fallbackQuery: "virtual doctor", freshness: FRESHNESS_TIERS.tech },
+  { name: "Travel", query: "travel industry airlines destinations", fallbackQuery: "travel news", freshness: FRESHNESS_TIERS.breaking },
 ];
 
 /**
@@ -780,13 +780,109 @@ export async function clearNewsCache(date?: Date): Promise<void> {
 }
 
 /**
- * Fetches all news with intelligent caching
- * - Checks cache first
- * - If cache exists and not forced refresh, returns cached data
- * - Otherwise fetches fresh data and saves to cache
- * @param forceRefresh - If true, bypasses cache and fetches fresh data
+ * Retry a failed topic with simplified fallback query
+ * Uses a simpler query string to increase chances of finding articles
  */
-export async function scrapeAllNews(forceRefresh: boolean = false): Promise<NewsContent[]> {
+async function retryTopicWithFallbackQuery(topic: { name: string; query: string; fallbackQuery?: string; freshness: number }): Promise<NewsContent> {
+  if (!topic.fallbackQuery) {
+    console.log(`[Retry] No fallback query available for ${topic.name}`);
+    return { topic: topic.name, articles: [] };
+  }
+  
+  console.log(`[Retry] Attempting ${topic.name} with simplified query: "${topic.fallbackQuery}"`);
+  
+  // Try with the simpler fallback query
+  const fallbackTopic = { ...topic, query: topic.fallbackQuery };
+  return await scrapeNews(fallbackTopic);
+}
+
+/**
+ * Targeted Brave Search fallback for underrepresented topics
+ * Uses Brave's general search with relaxed freshness to find ANY relevant content
+ * Only called for topics that have been consistently missing from reports
+ */
+async function targetedBraveSearchFallback(topic: { name: string; query: string; fallbackQuery?: string; freshness: number }): Promise<NewsContent> {
+  console.log(`[Targeted Fallback] Using Brave general search for underrepresented topic: ${topic.name}`);
+  
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  if (!apiKey) {
+    return { topic: topic.name, articles: [] };
+  }
+  
+  try {
+    // Use fallback query if available, otherwise primary query
+    const searchQuery = topic.fallbackQuery || topic.query;
+    
+    // Use longer freshness window for underrepresented topics (7 days)
+    const response = await fetch(
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(searchQuery + " news")}&count=5&freshness=pw`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X-Subscription-Token': apiKey,
+        },
+        signal: AbortSignal.timeout(10000)
+      }
+    );
+    
+    if (response.status === 429) {
+      console.warn(`[Targeted Fallback] Rate limit hit for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    if (!response.ok) {
+      return { topic: topic.name, articles: [] };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.web?.results || data.web.results.length === 0) {
+      console.warn(`[Targeted Fallback] No results found for ${topic.name}`);
+      return { topic: topic.name, articles: [] };
+    }
+    
+    // Parse articles (same logic as regular Brave Search)
+    const articles = data.web.results
+      .filter((result: any) => {
+        const hasTitle = result.title && result.title.length > 10;
+        const hasDescription = result.description && result.description.length > 30;
+        const hasUrl = result.url;
+        return hasTitle && hasDescription && hasUrl;
+      })
+      .slice(0, 3)
+      .map((result: any) => ({
+        title: result.title,
+        summary: result.description,
+        source: "Brave Search",
+        url: result.url,
+        publishedAt: new Date().toISOString(), // Use current time as fallback
+      }));
+    
+    if (articles.length > 0) {
+      console.log(`[Targeted Fallback] ✓ Found ${articles.length} articles for ${topic.name}`);
+    }
+    
+    return {
+      topic: topic.name,
+      articles
+    };
+    
+  } catch (error) {
+    console.error(`[Targeted Fallback] Error for ${topic.name}:`, error);
+    return { topic: topic.name, articles: [] };
+  }
+}
+
+/**
+ * Fetches all news with intelligent caching, retry logic, and targeted fallbacks
+ * - Checks cache first
+ * - Initial parallel scrape for all topics
+ * - Sequential retry with simplified queries for failed topics
+ * - Targeted fallback search for persistently underrepresented topics
+ * @param forceRefresh - If true, bypasses cache and fetches fresh data
+ * @param underrepresentedTopics - Topics that haven't been covered in last 5 reports (for targeted fallback)
+ */
+export async function scrapeAllNews(forceRefresh: boolean = false, underrepresentedTopics: string[] = []): Promise<NewsContent[]> {
   // Check cache first unless forced refresh
   if (!forceRefresh) {
     const cached = await readNewsCache();
@@ -797,21 +893,78 @@ export async function scrapeAllNews(forceRefresh: boolean = false): Promise<News
   }
   
   const results: NewsContent[] = [];
+  const failedTopics: typeof NEWS_TOPICS = [];
   
   console.log(`\n${"=".repeat(60)}\n  STARTING MULTI-SOURCE NEWS AGGREGATION\n${"=".repeat(60)}`);
   
-  // Fetch news for each topic sequentially to avoid overwhelming APIs
+  // PHASE 1: Initial parallel scrape for all topics
   for (const topic of NEWS_TOPICS) {
     try {
       const content = await scrapeNews(topic);
       if (content.articles.length > 0) {
         results.push(content);
+      } else {
+        failedTopics.push(topic);
       }
       // Small delay to respect rate limits across all sources
       await new Promise(resolve => setTimeout(resolve, 200));
     } catch (error) {
       console.error(`[Multi-Source] Error scraping news for ${topic.name}:`, error);
+      failedTopics.push(topic);
     }
+  }
+  
+  console.log(`\n[Phase 1 Complete] ${results.length}/${NEWS_TOPICS.length} topics successful, ${failedTopics.length} failed`);
+  
+  // PHASE 2: Sequential retry with fallback queries for failed topics
+  if (failedTopics.length > 0) {
+    console.log(`\n[Phase 2] Retrying ${failedTopics.length} failed topics with simplified queries...`);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay before retries
+    
+    for (const topic of failedTopics) {
+      try {
+        const content = await retryTopicWithFallbackQuery(topic);
+        if (content.articles.length > 0) {
+          results.push(content);
+          // Remove from failed list
+          const index = failedTopics.indexOf(topic);
+          if (index > -1) failedTopics.splice(index, 1);
+        }
+        // Longer delay between retries to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`[Retry] Error retrying ${topic.name}:`, error);
+      }
+    }
+    
+    console.log(`[Phase 2 Complete] ${results.length}/${NEWS_TOPICS.length} topics now successful`);
+  }
+  
+  // PHASE 3: Targeted fallback for underrepresented topics still missing
+  const stillMissingUnderrepresented = failedTopics.filter(t => 
+    underrepresentedTopics.includes(t.name)
+  );
+  
+  if (stillMissingUnderrepresented.length > 0) {
+    console.log(`\n[Phase 3] Targeted fallback for ${stillMissingUnderrepresented.length} underrepresented topics...`);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay before targeted fallback
+    
+    // Limit to 3 targeted searches per run to preserve API quota
+    const topicsToTarget = stillMissingUnderrepresented.slice(0, 3);
+    
+    for (const topic of topicsToTarget) {
+      try {
+        const content = await targetedBraveSearchFallback(topic);
+        if (content.articles.length > 0) {
+          results.push(content);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } catch (error) {
+        console.error(`[Targeted Fallback] Error for ${topic.name}:`, error);
+      }
+    }
+    
+    console.log(`[Phase 3 Complete] Final count: ${results.length}/${NEWS_TOPICS.length} topics successful`);
   }
   
   console.log(`\n${"=".repeat(60)}\n  AGGREGATION COMPLETE: ${results.length}/${NEWS_TOPICS.length} topics successful\n${"=".repeat(60)}\n`);
