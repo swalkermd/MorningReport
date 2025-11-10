@@ -42,10 +42,11 @@ Currently uses in-memory storage for users and reports, implementing an `IStorag
 -   Requires `BRAVE_SEARCH_API_KEY`, `NEWSAPI_KEY`, `CURRENTS_API_KEY`, and `MEDIASTACK_API_KEY`.
 
 **News Caching System:**
--   Stores date-based JSON files in `/cache/` to reduce API calls during development.
--   Validates cache for minimum topic coverage (at least 5 topics) and falls back to live scrape if insufficient.
--   Provides development-only endpoints for cache status, clearing, and report regeneration.
--   In production, cache is validated daily at 5:30 AM and triggers a fresh scrape if insufficient.
+-   Stores date-based JSON files in `/cache/` for development efficiency and backup.
+-   **Automatic scheduled reports (5:30 AM PST) ALWAYS use fresh API calls** (`forceRefresh=true`), never cached data.
+-   Cache is automatically saved after successful fresh scrapes for reference.
+-   Manual regeneration via API endpoint supports optional `forceRefresh` parameter (defaults to using cache).
+-   Validates cache for minimum topic coverage (at least 5 topics) before using.
 
 **Database (Future):**
 -   Neon Serverless PostgreSQL is configured for a future migration path. (Requires `DATABASE_URL`)

@@ -16,7 +16,7 @@ export function startScheduler() {
     console.log(`[${now.toISOString()}] [PST: ${pstTime.toLocaleString()}] Starting scheduled daily report generation...`);
     
     try {
-      await generateDailyReport();
+      await generateDailyReport(true); // Always use fresh API calls for scheduled reports
       console.log(`[${now.toISOString()}] Daily report generated successfully`);
     } catch (error) {
       console.error(`[${now.toISOString()}] Error generating daily report:`, error);
@@ -38,7 +38,7 @@ export function startScheduler() {
     if (!latestReport || new Date(latestReport.date) < today) {
       console.log("No report for today found. Generating initial report...");
       try {
-        await generateDailyReport();
+        await generateDailyReport(true); // Always use fresh API calls for automatic reports
         console.log("Initial report generated successfully");
       } catch (error) {
         console.error("Error generating initial report:", error);
