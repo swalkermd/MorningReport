@@ -90,9 +90,11 @@ Preferred communication style: Simple, everyday language.
    - Saves reports with metadata (date, content, audio path) to storage
 
 4. **Scheduler** (`scheduler.ts`):
-   - Cron-based scheduling for 5:30 AM PST daily report generation
-   - Timezone-aware using America/Los_Angeles
+   - Cron-based scheduling for 5:30 AM Pacific Time daily report generation
+   - Timezone-aware using America/Los_Angeles (automatically handles PST/PDT transitions)
+   - Cron expression: "30 5 * * *" (runs at 5:30 AM local Pacific time)
    - Auto-generates initial report on startup if none exists for today
+   - **Critical Fix (Nov 2025)**: Corrected cron expression from "30 13 * * *" (1:30 PM) to "30 5 * * *" (5:30 AM) - when using timezone option, time must be in local time zone, not UTC
 
 **API Endpoints:**
 - `GET /api/reports/latest` - Retrieves most recent report with audio path

@@ -3,21 +3,23 @@ import { generateDailyReport } from "./reportGenerator";
 import { storage } from "./storage";
 
 export function startScheduler() {
-  // Schedule daily report generation at 5:30 AM PST
+  // Schedule daily report generation at 5:30 AM Pacific Time
   // Cron format: minute hour day month weekday
-  // PST is UTC-8, so 5:30 AM PST = 13:30 UTC (during standard time)
-  // Note: Adjust for daylight saving time if needed
+  // When using timezone option, specify time in LOCAL time zone (not UTC)
+  // node-cron automatically handles PST/PDT transitions
   
-  const cronExpression = "30 13 * * *"; // 5:30 AM PST (13:30 UTC)
+  const cronExpression = "30 5 * * *"; // 5:30 AM Pacific Time
   
   cron.schedule(cronExpression, async () => {
-    console.log(`[${new Date().toISOString()}] Starting scheduled daily report generation...`);
+    const now = new Date();
+    const pstTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+    console.log(`[${now.toISOString()}] [PST: ${pstTime.toLocaleString()}] Starting scheduled daily report generation...`);
     
     try {
       await generateDailyReport();
-      console.log(`[${new Date().toISOString()}] Daily report generated successfully`);
+      console.log(`[${now.toISOString()}] Daily report generated successfully`);
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error generating daily report:`, error);
+      console.error(`[${now.toISOString()}] Error generating daily report:`, error);
     }
   }, {
     timezone: "America/Los_Angeles"
