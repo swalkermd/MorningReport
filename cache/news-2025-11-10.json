@@ -7,33 +7,52 @@
         "summary": "Explore the international news happening around the world today. Discover daily world headlines and the breaking events that are happening in the world each day with Fox News.",
         "source": "foxnews.com",
         "url": "https://www.foxnews.com/world",
-        "publishedAt": "2025-11-10T13:00:14.752Z"
+        "publishedAt": "2025-11-10T13:26:56.904Z"
       },
       {
         "title": "World News | Breaking and Latest World News, International News Headlines – NDTV.com",
         "summary": "<strong>A humanitarian agency of the US government and the Clinton family were behind the uprising in Bangladesh that led to Sheikh Hasina&#x27;s ouster in 2024</strong>, a top aide of the former prime minister has alleged in an interview with Russia Today.",
         "source": "ndtv.com",
         "url": "https://www.ndtv.com/world-news",
-        "publishedAt": "2025-11-10T00:00:14.752Z"
+        "publishedAt": "2025-11-10T00:26:56.904Z"
       }
     ]
   },
   {
-    "topic": "Redlands CA Local News",
+    "topic": "US News",
     "articles": [
       {
-        "title": "Current Pollen Allergy Forecast for Redlands, CA (92374) | Pollen.com",
-        "summary": "Get Current Allergy Report for Redlands, CA (92374). See important allergy and weather information to help you plan ahead.",
-        "source": "pollen.com",
-        "url": "https://www.pollen.com/forecast/current/pollen/92374",
-        "publishedAt": "2025-11-10T00:00:15.778Z"
+        "title": "Trump Administration Highlights: Senate Votes to Advance Measure to End Shutdown - The New York Times",
+        "summary": "In a 60-to-40 vote on Sunday night, <strong>the Senate cleared the way for a spending deal to end the government shutdown</strong>. A group of Democrats broke their party’s blockade to vote with Republicans.",
+        "source": "nytimes.com",
+        "url": "https://www.nytimes.com/live/2025/11/09/us/trump-news",
+        "publishedAt": "2025-11-10T15:06:57.891Z"
       },
       {
-        "title": "What do Southern California GOP leaders think about Nick Fuentes? – Redlands Daily Facts",
-        "summary": "100 years ago in Redlands: <strong>University of Redlands freshman dies after brief bout of polio</strong> · Del Mar consensus picks for Saturday, Nov. 8, 2025 · Where to find 2025 Veterans Day events in the Inland Empire · What’s open and closed on Veterans ...",
-        "source": "redlandsdailyfacts.com",
-        "url": "https://www.redlandsdailyfacts.com/2025/11/09/what-do-southern-california-gop-leaders-think-about-nick-fuentes/",
-        "publishedAt": "2025-11-09T15:00:15.778Z"
+        "title": "Latest World & National News & Headlines - USATODAY.com",
+        "summary": "Airline News · 32 things we learned in Week 10: Up is down, bad is good, meh trades · Nate Davis · Stocks jump at the open after vote to reopen government · americasmarkets · 10 states report infant botulism tied to formula recall: See map · Health · We explored the true history of the Underground Railroad ·",
+        "source": "usatoday.com",
+        "url": "https://www.usatoday.com/",
+        "publishedAt": "2025-11-10T15:01:57.891Z"
+      },
+      {
+        "title": "U.S. and National News - USA TODAY",
+        "summary": "Starting Nov. 4, the FAA mandated airlines cut 4% of flights at 40 airports across the United States.",
+        "source": "usatoday.com",
+        "url": "https://www.usatoday.com/news/nation/",
+        "publishedAt": "2025-11-09T21:26:57.891Z"
+      }
+    ]
+  },
+  {
+    "topic": "NBA",
+    "articles": [
+      {
+        "title": "NBA News, Scores & Expert Analysis | Sports Illustrated",
+        "summary": "Veterans like <strong>Bradley Beal, CJ McCollum, Jrue Holiday and Klay Thompson</strong> still bring a lot of value, while younger players like Dyson Daniels and Brandon Miller have room to grow.",
+        "source": "si.com",
+        "url": "https://www.si.com/nba",
+        "publishedAt": "2025-11-10T15:20:58.977Z"
       }
     ]
   },
@@ -41,38 +60,64 @@
     "topic": "AI & Machine Learning",
     "articles": [
       {
-        "title": "Artificial Intelligence: Read latest news updates on AI technology | The Indian Express",
-        "summary": "Artificial Intelligence: Read latest updates on AI like Google AI, ChatGPT, Google Lamda, Bard chatbot and more along with latest news as AI technology advances and makes new progress. All get detailed articles on AI related queries like what is AI, types of artificial intelligence, its ...",
-        "source": "indianexpress.com",
-        "url": "https://indianexpress.com/section/technology/artificial-intelligence/",
-        "publishedAt": "2025-11-10T07:00:16.849Z"
+        "title": "Self-learning AI releases NFL picks, score predictions every Week 10 game",
+        "summary": "SportsLine AI evaluated the Week 10 NFL odds and revealed its NFL predictions, NFL score predictions and NFL betting picks for every game",
+        "source": "CBS Sports",
+        "url": "https://www.cbssports.com/nfl/news/nfl-week-10-picks-exact-score-predictions-best-bets-today/",
+        "publishedAt": "2025-11-09T15:07:32Z"
       },
       {
-        "title": "Google Unveils HOPE AI Model: A Leap In Continual Learning With Nested Learning Paradigm - WireUnwired Research",
-        "summary": "Key Insights <strong>Google introduces HOPE, a new AI model based on the Nested Learning paradigm, designed to solve continual learning and catastrophic forgetting</strong>.HOPE leverages multi-level, modular memory systems to emulate human-like adaptive learning, ...",
-        "source": "wireunwired.com",
-        "url": "https://wireunwired.com/google-unveils-hope-ai-model-a-leap-in-continual-learning-with-nested-learning-paradigm/",
-        "publishedAt": "2025-11-10T07:00:16.849Z"
+        "title": "AI-Driven Personalization In eLearning: Redefining The Future Of Learning Experiences",
+        "summary": "As Artificial Intelligence matures, it's revolutionizing the eLearning solutions landscape, bringing adaptive learning, smart chatbots, and predictive analytics to the forefront. Whether it's corporate training or higher education, AI is powering a new era.\nT…",
+        "source": "Elearningindustry.com",
+        "url": "https://elearningindustry.com/ai-driven-personalization-in-elearning-redefining-the-future-of-learning-experiences",
+        "publishedAt": "2025-11-09T14:00:04Z"
       },
       {
-        "title": "History of artificial intelligence - Wikipedia",
-        "summary": "In 2023, Microsoft Research tested ... general intelligence (AGI) system&quot;. In 2024, <strong>OpenAI o3, a type of advanced reasoning model developed by OpenAI, was announced</strong>....",
-        "source": "en.wikipedia.org",
-        "url": "https://en.wikipedia.org/wiki/History_of_artificial_intelligence",
-        "publishedAt": "2025-11-09T15:00:16.849Z"
+        "title": "Waymo self-driving cars are ‘learning’ Denver’s streets. But Colorado has no regulatory oversight of autonomous vehicles.",
+        "summary": "The Waymo expansion here accelerates the spread of machine-learning technology and may help self-driving cars overcome a technical problem: navigating thick, sensor-obscuring snow.",
+        "source": "The Denver Post",
+        "url": "https://www.denverpost.com/2025/11/09/waymo-denver-self-driving-cars/",
+        "publishedAt": "2025-11-09T13:00:33Z"
+      }
+    ]
+  },
+  {
+    "topic": "Electric Vehicles",
+    "articles": [
+      {
+        "title": "EV maker Rivian follows Tesla’s model with Elon Musk-style $4.6 billion pay package for CEO - The Times of India",
+        "summary": "This package, mirroring Elon Musk&#x27;s Tesla deal, links his rewards to ambitious stock price and profitability targets. The automaker aims to retain its founder and fuel growth, especially with the upcoming <strong>R2 SUV</strong> launch. Electric vehicle ...",
+        "source": "timesofindia.indiatimes.com",
+        "url": "https://timesofindia.indiatimes.com/technology/tech-news/ev-maker-rivian-follows-teslas-model-with-elon-musk-style-4-6-billion-pay-package-for-ceo/articleshow/125199035.cms",
+        "publishedAt": "2025-11-09T15:26:59.915Z"
+      },
+      {
+        "title": "Electric SUVs are everywhere. Now automakers have to convince consumers to buy them",
+        "summary": "Electric SUVs are everywhere. Now automakers have to convince consumers to buy themgo.com",
+        "source": "ABC News",
+        "url": "https://abcnews.go.com/Business/electric-suvs-now-automakers-convince-consumers-buy/story?id=127139430",
+        "publishedAt": "2025-11-09T11:00:00Z"
+      },
+      {
+        "title": "Why Are We All Still Carrying Around Car Keys?",
+        "summary": "Ford wants you to stash it in your belt buckle, but there’s absolutely no need to be lugging around a bulky fob. Trouble is, phone-as-a-key tech could be superseded before it even gets going.",
+        "source": "Wired",
+        "url": "https://www.wired.com/story/why-are-we-all-still-carrying-around-car-keys/",
+        "publishedAt": "2025-11-08T10:00:00Z"
+      },
+      {
+        "title": "Ford Might Cancel the All-Electric F-150 Lightning",
+        "summary": "EV sales have hit the skids and might claim one of their biggest victims yet, which is Ford's all-electric F-150 Lightning, according to reports.",
+        "source": "Robb Report",
+        "url": "http://robbreport.com/motors/cars/ford-f-150-lightning-cancel-1237351309/",
+        "publishedAt": "2025-11-07T21:00:00Z"
       }
     ]
   },
   {
     "topic": "Autonomous Driving",
     "articles": [
-      {
-        "title": "Autonomous & Self-Driving Vehicle News: Waymo, Holman, Beep, Foretellix & Parallel Domain. | auto connected car news",
-        "summary": "Beep, Inc., a leader in autonomous shared mobility, announced two new autonomous vehicle (AV) deployments using Karsan’s production-grade Autonomous e-JEST minibuses, integrated with ADASTEC’s Level-4 automation software and managed through Beep’s AutonomOS™ platform. The vehicles, distributed by Damera Corp., represent a major step forward in bringing fully certified, road-ready AV technology to U.S.",
-        "source": "autoconnectedcar.com",
-        "url": "https://www.autoconnectedcar.com/2025/11/autonomous-self-driving-vehicle-news-waymo-holman-beep-foretellix-parallel-domain/",
-        "publishedAt": "2025-11-09T22:00:17.779Z"
-      },
       {
         "title": "Waymo self-driving cars are ‘learning’ Denver’s streets. But Colorado has no regulatory oversight of autonomous vehicles.",
         "summary": "The Waymo expansion here accelerates the spread of machine-learning technology and may help self-driving cars overcome a technical problem: navigating thick, sensor-obscuring snow.",
@@ -81,18 +126,115 @@
         "publishedAt": "2025-11-09T13:00:33Z"
       },
       {
+        "title": "What Can Europe Learn From China’s Critical-Tech Innovation Push?",
+        "summary": "China’s rise in frontier technologies narrows its gap with the US as Europe struggles with slow replication and fragmented research.",
+        "source": "Nakedcapitalism.com",
+        "url": "https://www.nakedcapitalism.com/2025/11/what-can-europe-learn-from-chinas-critical-tech-innovation-push.html",
+        "publishedAt": "2025-11-09T10:00:51Z"
+      },
+      {
         "title": "Tesla’s Driverless Cybertruck: Coming Soon",
         "summary": "Tesla’s Cybercab: A Driverless Revolution Coming in April? Exciting news for autonomous vehicle enthusiasts! Tesla CEO Elon Musk has announced that production of the highly anticipated Cybercab is slated to begin in April at the Austin, Texas factory. This ma…",
         "source": "Nep123.com",
         "url": "https://nep123.com/teslas-driverless-cybertruck-coming-soon/",
         "publishedAt": "2025-11-09T08:04:40Z"
+      }
+    ]
+  },
+  {
+    "topic": "Humanoid Robots",
+    "articles": [
+      {
+        "title": "Humanoid Robot Roundup: Tesla Kicks Off Optimus Pilot Production As Goldman Tours China's Supply Chain",
+        "summary": "Humanoid Robot Roundup: Tesla Kicks Off Optimus Pilot Production As Goldman Tours China's Supply Chain\n \nAt Tesla's annual shareholder meeting in Austin, Texas, on Thursday evening, more than 75% of investors approved Elon Musk's $1 trillion CEO Performance A…",
+        "source": "Biztoc.com",
+        "url": "https://biztoc.com/x/09fa8a29533865ee",
+        "publishedAt": "2025-11-09T13:54:28Z"
       },
       {
-        "title": "Tesla shareholders approve $1-trillion pay package for Elon Musk",
-        "summary": "More than 75% of Tesla shareholders voted to approve a staggering pay package for Chief Executive Elon Musk that could award him $1 trillion.",
-        "source": "Yahoo Entertainment",
-        "url": "https://finance.yahoo.com/news/tesla-shareholders-approve-1-trillion-225351123.html",
-        "publishedAt": "2025-11-06T22:53:51Z"
+        "title": "Elon Musk Says Optimus Robot Will Replace Jobs and Enable Universal Income - Tesla (NASDAQ:TSLA)",
+        "summary": "Elon Musk, CEO of Tesla Inc. (NASDAQ:TSLA), has predicted that the company's humanoid robot Optimus could revolutionize the global economy even if it significantly reduces the need for human labor.\nDespite the technical challenges surrounding the robot's prod…",
+        "source": "Biztoc.com",
+        "url": "https://biztoc.com/x/43f3a478c2f3b38d",
+        "publishedAt": "2025-11-09T01:51:26Z"
+      }
+    ]
+  },
+  {
+    "topic": "eVTOL & Flying Vehicles",
+    "articles": [
+      {
+        "title": "XPeng’s Land Carrier Is the World’s First Modular Flying Car, Now Launched",
+        "summary": "According to the company, the facility produces 300 tons of carbon-fiber parts annually, ensuring lightweight strength and durability for the flying car. Each vehicle will undergo rigorous safety and airworthiness testing before delivery. XPeng’s Land Carrier could mark the start of a new era in transportation where vehicles drive on roads and take to the skies when needed. The company plans to begin mass production next year, following extensive testing in 2025. With China heavily investing in the low-altitude economy and the urban air mobility (UAM) sector, XPeng’s new venture positions it ahead of global competitors such as Joby Aviation, Lilium, and Hyundai’s Supernal.",
+        "source": "pakwheels.com",
+        "url": "https://www.pakwheels.com/blog/xpeng-land-carrier-modular-flying-car/",
+        "publishedAt": "2025-11-10T00:27:01.174Z"
+      },
+      {
+        "title": "Urban air mobility developers get ready for services to launch in the UAE | Flight Global",
+        "summary": "The plan is for Joby to initially operate commercial flights in Dubai under its own air operator certificate, linking Dubai International airport (DXB) with downtown Dubai, the Palm and Dubai Marina. When it launches in other parts of the Gulf, it may work with partners, says Khoury. Joby’s main partner in the project is Skyports, which is in the final stages of building its first ­vertiport, just outside the perimeter of DXB, in a ­former car park behind Emirates’ headquarters, and next to a station on the Dubai Metro.",
+        "source": "flightglobal.com",
+        "url": "https://www.flightglobal.com/aerospace/urban-air-mobility-gets-ready-to-rise-in-the-uae/165235.article",
+        "publishedAt": "2025-11-10T00:27:01.174Z"
+      },
+      {
+        "title": "Urban Air Age Requirement Mobility Cyient-",
+        "summary": "Description of The NASA Urban Air Mobility Maturity Level (UML) Scale",
+        "source": "henrybeaver.com",
+        "url": "https://henrybeaver.com/newserx/346840-urban-air-age-requirement-mobility-cyient",
+        "publishedAt": "2025-11-09T15:27:01.174Z"
+      }
+    ]
+  },
+  {
+    "topic": "Anti-Aging Science",
+    "articles": [
+      {
+        "title": "Why doctors keep recommending these 6 types of fish",
+        "summary": "Americans increasingly turn to seafood for health benefits, yet many remain unaware of which varieties offer maximum nutritional value while minimizing potential risks. The distinction matters: choosing the right fish can mean the difference between robust ca…",
+        "source": "Rolling Out",
+        "url": "https://rollingout.com/2025/11/09/doctors-recommending-these-types-of-fish/",
+        "publishedAt": "2025-11-09T12:13:38Z"
+      },
+      {
+        "title": "Practical Hacks For Making New Habits, Waging The War Against Alcohol, The Best Morning Routine Ever, Upgraded Overnight Oatmeal & Much More With Michael Chernow (Best of LIFE Network’s Experts!)",
+        "summary": "Listen on: Read time: 8 minutes What I Discuss with Michael Chernow: How my unconventional Morning Raw Liver Smoothie led\nThe post Practical Hacks For Making New Habits, Waging The War Against Alcohol, The Best Morning Routine Ever, Upgraded Overnight Oatmeal…",
+        "source": "Bengreenfieldlife.com",
+        "url": "https://bengreenfieldlife.com/podcast/lnchernow/",
+        "publishedAt": "2025-11-08T10:00:48Z"
+      },
+      {
+        "title": "What Whales, Elephants And Tardigrades Reveal About Longevity",
+        "summary": "Longevity and disease resistance in humans may soon be transformed by studying and emulating the genetic strategies encoded in nature’s most resilient and long-lived species.",
+        "source": "Forbes",
+        "url": "https://www.forbes.com/sites/williamhaseltine/2025/11/07/what-whales-elephants-and-tardigrades-reveal-about-longevity/",
+        "publishedAt": "2025-11-07T16:17:08Z"
+      }
+    ]
+  },
+  {
+    "topic": "Virtual Medicine",
+    "articles": [
+      {
+        "title": "E-Pharmacy Market Set to Quadruple, Reaching USD 435.82 Billion by 2034, Reports Towards Healthcare",
+        "summary": "The E-pharmacy market size is calculated at USD 112.91 billion in 2025 and is expected to reach around USD 435.82 billion by 2034, growing at a CAGR of 16.44% for the forecasted period. The E-pharmacy market size is calculated at USD 112.91 billion in 2025 an…",
+        "source": "GlobeNewswire",
+        "url": "https://www.globenewswire.com/news-release/2025/11/07/3183775/0/en/E-Pharmacy-Market-Set-to-Quadruple-Reaching-USD-435-82-Billion-by-2034-Reports-Towards-Healthcare.html",
+        "publishedAt": "2025-11-07T15:00:00Z"
+      },
+      {
+        "title": "When Medicine Becomes Marketing: How Celebrities Are Selling GLP-1s, Peptides And Longevity Through Telehealth",
+        "summary": "Ro, Hims, and other telehealth and longevity companies are using celebrity to sell GLP-1s, imaging and diagnostics —raising FDA concerns.",
+        "source": "Forbes",
+        "url": "https://www.forbes.com/sites/sindhyavalloppillil/2025/11/06/when-medicine-becomes-marketing-how-celebrities-are-selling-glp-1s-peptides-and-longevity-through-telehealth/",
+        "publishedAt": "2025-11-06T20:26:48Z"
+      },
+      {
+        "title": "Building the cloud backbone of modern healthcare",
+        "summary": "Healthcare no longer ends at the hospital walls. It resides in the cloud, within encrypted channels that connect patients to physicians, laboratories, and insurers. Few understand the invisible framework better than Anjan Kumar Gundaboina, Senior Cloud Securi…",
+        "source": "Digital Journal",
+        "url": "https://www.digitaljournal.com/tech-science/building-the-cloud-backbone-of-modern-healthcare/article",
+        "publishedAt": "2025-11-06T19:13:49Z"
       }
     ]
   },
@@ -104,66 +246,54 @@
         "summary": "We round up the coolest (and wildest) new products that were announced at CES 2025, from TVs to cars, audio players to smart home devices.",
         "source": "gearpatrol.com",
         "url": "https://www.gearpatrol.com/tech/best-tech-gadgets-ces-2025/",
-        "publishedAt": "2025-11-10T12:00:19.595Z"
+        "publishedAt": "2025-11-10T11:27:06.380Z"
       },
       {
-        "title": "The best tech gifts and cool gadgets for 2025",
-        "summary": "We travel to CES, attend product launches, cover major and minor tech events — we also can’t help but buy ourselves any zany, clever, addictive or productive tech we happen to stumble across. In short, we’ve got some ideas about good gifts for tech nerds (which we are). Here are the best tech gifts and gadgets for 2025.",
-        "source": "engadget.com",
-        "url": "https://www.engadget.com/computing/the-best-tech-gifts-and-cool-gadgets-for-2025-140052697.html",
-        "publishedAt": "2025-11-10T08:00:19.595Z"
+        "title": "Technology News - Latest Tech News Today, New Gadgets, Mobile Technology News - Gadgets 360",
+        "summary": "Trending Products » · <strong>Motorola Edge 60 Fusion</strong> Starts from ₹22,999 · Moto G96 5G Starts from ₹17,999 · Motorola Edge 60 Pro Starts from ₹29,999 · Lenovo Yoga Slim 7i Aura Edition Starts from ₹1,32,141 · Sony PlayStation 5 Starts ...",
+        "source": "gadgets360.com",
+        "url": "https://www.gadgets360.com/news",
+        "publishedAt": "2025-11-09T15:27:06.380Z"
       },
       {
-        "title": "The Stuff Gadget Awards 2025: here are all the winners this year | Stuff",
-        "summary": "Here’s the list of all the category articles so you can see which products have won. ... From budget phones to folding handsets, here are our favourite smartphones of 2025 across several categories",
-        "source": "stuff.tv",
-        "url": "https://www.stuff.tv/features/stuff-gadget-awards-2025/",
-        "publishedAt": "2025-11-09T15:00:19.595Z"
+        "title": "37 Affordable Tech Products That Will Genuinely Elevate Your Life",
+        "summary": "Check out a TikTok of the new Ocoopa hand warmers in action.",
+        "source": "buzzfeed.com",
+        "url": "https://www.buzzfeed.com/emmalord9/affordable-tech-products-genuine-elevate",
+        "publishedAt": "2025-11-09T15:27:06.380Z"
+      },
+      {
+        "title": "Top B2B Marketing Agencies for Software/App Development Companies - Best Shopify SEO Agency",
+        "summary": "The selection criteria of a B2B marketing agency here match your reality. The agency profiles are concise.",
+        "source": "Atamgo.com",
+        "url": "https://www.atamgo.com/top-b2b-marketing-agencies-for-software-app-development-companies/",
+        "publishedAt": "2025-11-09T14:29:14Z"
       }
     ]
   },
   {
-    "topic": "Anti-Aging Science",
+    "topic": "Redlands CA Local News",
     "articles": [
       {
-        "title": "When Medicine Becomes Marketing: How Celebrities Are Selling GLP-1s, Peptides And Longevity Through Telehealth",
-        "summary": "Ro, Hims, and other telehealth and longevity companies are using celebrity to sell GLP-1s, imaging and diagnostics —raising FDA concerns.",
-        "source": "Forbes",
-        "url": "https://www.forbes.com/sites/sindhyavalloppillil/2025/11/06/when-medicine-becomes-marketing-how-celebrities-are-selling-glp-1s-peptides-and-longevity-through-telehealth/",
-        "publishedAt": "2025-11-06T20:26:48Z"
-      }
-    ]
-  },
-  {
-    "topic": "Virtual Medicine",
-    "articles": [
-      {
-        "title": "How Google and Vitality are Partnering for AI Healthcare | Healthcare Digital",
-        "summary": "<strong>Vitality AI is using Google Cloud technology to provide tailored, proactive health guidance to millions of users around the world</strong>",
-        "source": "healthcare-digital.com",
-        "url": "https://healthcare-digital.com/news/google-and-vitality-partner-for-ai-healthcare",
-        "publishedAt": "2025-11-09T15:00:20.579Z"
+        "title": "Redlands News - Nov. 7, 2025",
+        "summary": "This week in Redlands news: How test scores are recovering post-pandemic, city launches food security plan, and Veterans Day Parade set",
+        "source": "Brave Search",
+        "url": "https://www.communityforwardredlands.com/november-7-2025/",
+        "publishedAt": "2025-11-10T15:27:09.827Z"
       },
       {
-        "title": "New YouTube health channel In Good Hands launches",
-        "summary": "New YouTube health channel In Good Hands launches -- bringing credible, conversational healthcare conversations to every Indian home (#InGoodHands) - HT Syndication New Delhi [India], November 8: Today marks the launch of In Good Hands a new YouTube ... - Lat…",
-        "source": "Lokmattimes.com",
-        "url": "https://www.lokmattimes.com/business/new-youtube-health-channel-in-good-hands-launches-bringing-credible-conversational-healthcare-conversations-to-every-indian-home-ingoodhands/",
-        "publishedAt": "2025-11-08T11:13:21Z"
+        "title": "This week in Redlands: Truck route workshops, Council & School Board meetings",
+        "summary": "Stay informed before decisions are made — here’s what’s coming up at this week’s truck route workshops, City Council, and School Board meetings.",
+        "source": "Brave Search",
+        "url": "https://www.communityforwardredlands.com/this-eek-in-redlands-truck-route-workshops-council-school-board-meetings/",
+        "publishedAt": "2025-11-10T15:27:09.827Z"
       },
       {
-        "title": "Top 10 Industries Hiring in Dubai Right Now",
-        "summary": "Dubai has become the destination of many job seekers who want to experience an international environment and reach a high-paying job. As a result, the majority of the city’s population are expats who work in different industries and at various levels. Althoug…",
-        "source": "Dubaichronicle.com",
-        "url": "https://www.dubaichronicle.com/2025/11/08/top-10-industries-hiring-in-dubai-right-now/",
-        "publishedAt": "2025-11-08T06:40:02Z"
-      },
-      {
-        "title": "‘I am in love with AIIMS Jammu,’ says Dr. Krishnan Ganapathy",
-        "summary": "STATE TIMES NEWS JAMMU: AIIMS Jammu hosted Dr. Krishnan Ganapathy, M Ch (Neurosurgery), FACS, FICS, FAMS, PhD – a Distinguished Professor at Tamil Nadu Dr. M.G.R. Medical University, Chennai, and a globally acclaimed pioneer in Telemedicine and Digital Health…",
-        "source": "Statetimes.in",
-        "url": "https://statetimes.in/i-am-in-love-with-aiims-jammu-says-dr-krishnan-ganapathy/",
-        "publishedAt": "2025-11-07T18:20:26Z"
+        "title": "Redlands City Council agenda: Nov. 4, 2025",
+        "summary": "Approval of settlement agreement with Miller &amp; Associates LLC: Authorize execution of a settlement and release agreement resolving litigation over alleged property damage at 611 W. Redlands Blvd. The agreement allows the city either to purchase the property for $3.4 million within 60 days or, if it declines, to pay $2.1 million to Miller &amp; Associates in full settlement of all claims.",
+        "source": "Brave Search",
+        "url": "https://www.communityforwardredlands.com/redlands-city-council-agenda-nov-4-2025/",
+        "publishedAt": "2025-11-10T15:27:09.827Z"
       }
     ]
   }
