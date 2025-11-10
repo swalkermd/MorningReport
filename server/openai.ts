@@ -236,7 +236,41 @@ async function generateReportAttempt(
     .join("\n\n");
 
   const previousReportsContext = previousReports.length > 0
-    ? `\n\nPrevious 5 reports (avoid repeating this content unless there are significant updates):\n${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}`
+    ? `\n\n🚨 CRITICAL ANTI-REPETITION REQUIREMENT 🚨
+
+PREVIOUS 5 REPORTS (DO NOT REPEAT THESE STORIES):
+${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}
+
+📋 REPETITION POLICY (STRICTLY ENFORCED):
+1. DO NOT cover the same story/event from previous reports UNLESS there is a NEW development
+2. A "NEW development" means:
+   ✅ A new action taken (e.g., company announced → company launched)
+   ✅ New numbers/data released (e.g., Q3 results → Q4 results)
+   ✅ New follow-up event (e.g., announcement → product ships)
+   ✅ Breaking update to ongoing story (e.g., investigation → arrest made)
+   
+3. NOT acceptable as "new development":
+   ❌ Same story with slightly different wording
+   ❌ General progress on previously covered topics
+   ❌ Continuation of same trend without new data points
+   ❌ "Still happening" or "ongoing" without specific new facts
+   
+4. REQUIRED for any repeat story:
+   - MUST explicitly state what's NEW (e.g., "In an update to yesterday's story...")
+   - MUST include NEW specific facts (names, numbers, dates) not in previous reports
+   - MUST represent meaningful progression, not just restatement
+   
+5. When in doubt: SKIP the story and find fresh news instead
+   - It's better to have 6 fresh topics than 8 topics with 2 repeats
+   - Listeners expect DIFFERENT news each day, not reruns
+
+❌ EXAMPLE OF VIOLATION:
+Previous report: "Tesla announced new battery technology with 30% range improvement"
+Today's report: "Tesla continues progress on battery technology improvements" ← REJECT THIS
+
+✅ EXAMPLE OF ACCEPTABLE REPEAT:
+Previous report: "Tesla announced new battery technology with 30% range improvement"
+Today's report: "Tesla began production of its new battery cells at the Texas Gigafactory, shipping first units to customers this week" ← NEW ACTION, NEW FACTS`
     : "";
   
   // Build topic balance guidance
@@ -411,7 +445,8 @@ ${newsContentStr}${previousReportsContext}
 Write your news report now. Remember: 
 1. SPECIFIC FACTS ONLY (names + numbers + dates)
 2. Cite sources only when pertinent to the story
-3. If a story can't meet quality standards, skip it entirely`;
+3. If a story can't meet quality standards, skip it entirely
+4. DO NOT REPEAT stories from previous reports unless there's a NEW development with NEW facts`;
 
   // Enhanced system message with non-negotiable requirements
   const systemMessage = `You are a professional news anchor writing comprehensive daily audio news briefings for Morning Report.
@@ -428,10 +463,14 @@ Write your news report now. Remember:
    - Include "On This Day in History" (1-2 sentences) before closing
    
 3. QUALITY: Every story requires specific names, numbers, locations, dates - NO generic phrases
-   
-4. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
 
-These are HARD requirements. Reports under 1500 words are automatically rejected.`;
+4. FRESHNESS: DO NOT repeat stories from previous 5 reports unless there's a genuinely NEW development
+   - Listeners expect DIFFERENT news each day, not rehashed content
+   - When in doubt, skip the story and find fresh news instead
+   
+5. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
+
+These are HARD requirements. Reports under 1500 words or with repeated stories are automatically rejected.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
