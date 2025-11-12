@@ -158,34 +158,32 @@ async function attemptGenerateReport(
       
       // Validate length
       const wordCount = report.split(/\s+/).length;
-      console.log(`[Report Length] Generated ${wordCount} words (target: 1500-2000) [attempt ${attempt}/${maxAttempts}]`);
-      
-      // Dynamic minimum based on available topics
-      // Testing (6 topics, sparse data): 700 words minimum (2-3 min audio)
-      // Production (10+ topics, fresh data): 1200 words minimum (4-6 min audio)  
-      // Full production (13 topics): Will easily hit 1500-2000 words
-      const minimumWords = topicCount < 10 ? 700 : 1200;
-      const targetWords = 1500;
-      
-      console.log(`[Report Length] Minimum: ${minimumWords} words (${topicCount} topics), Target: ${targetWords} words`);
-      
-      if (wordCount >= targetWords) {
-        console.log(`[Report Length] ✓ Report meets target length (${wordCount} words >= ${targetWords})`);
+      console.log(`[Report Length] Generated ${wordCount} words (target: 1800-2000) [attempt ${attempt}/${maxAttempts}]`);
+
+      // STRICT minimum: Never accept reports under 1200 words regardless of topic count
+      // This ensures 5-10 minute audio duration (1200 words ≈ 4-5 minutes minimum)
+      const ABSOLUTE_MINIMUM = 1200;
+      const IDEAL_TARGET = 1800;
+
+      console.log(`[Report Length] Minimum: ${ABSOLUTE_MINIMUM} words, Target: ${IDEAL_TARGET} words (${topicCount} topics)`);
+
+      if (wordCount >= IDEAL_TARGET) {
+        console.log(`[Report Length] ✓ Excellent length: ${wordCount} words`);
         return report;
-      } else if (wordCount >= minimumWords) {
-        console.log(`[Report Length] ✓ Report meets minimum length (${wordCount} words >= ${minimumWords}, target: ${targetWords})`);
+      } else if (wordCount >= ABSOLUTE_MINIMUM && topicCount >= 8) {
+        console.warn(`[Report Length] ⚠ Acceptable but short: ${wordCount} words (target: ${IDEAL_TARGET})`);
         return report;
       }
       
       // Report too short - prepare for retry
       lastWordCount = wordCount;
-      console.warn(`[Report Length] ⚠️  Report too short (${wordCount} words < ${minimumWords} minimum, target: ${targetWords})`);
-      
+      console.warn(`[Report Length] ⚠️  Report too short (${wordCount} words < ${ABSOLUTE_MINIMUM} minimum, target: ${IDEAL_TARGET})`);
+
       if (attempt < maxAttempts) {
         console.log(`[Report Length] Retrying with expansion instructions...`);
       } else {
-        console.error(`[Report Length] ❌ Failed to generate ${minimumWords}+ word report after ${maxAttempts} attempts`);
-        throw new Error(`Report generation failed: only ${wordCount} words after ${maxAttempts} attempts (minimum: ${minimumWords}, target: ${targetWords})`);
+        console.error(`[Report Length] ❌ Failed to generate ${ABSOLUTE_MINIMUM}+ word report after ${maxAttempts} attempts`);
+        throw new Error(`Report generation failed: only ${wordCount} words after ${maxAttempts} attempts (minimum: ${ABSOLUTE_MINIMUM}, target: ${IDEAL_TARGET})`);
       }
     } catch (error) {
       if (attempt === maxAttempts) {
@@ -302,38 +300,40 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
 
   // Calculate required words per topic
   const topicCount = newsContent.length;
-  const wordsPerTopic = Math.ceil(1600 / topicCount); // Aim for 1600 to provide buffer
+  const wordsPerTopic = Math.ceil(1800 / topicCount); // Aim for 1800 words total
   
   // Build retry-specific expansion instruction if this is a retry attempt
   const retryExpansionPrompt = previousWordCount ? `
-🚨🚨🚨 CRITICAL LENGTH FAILURE - IMMEDIATE EXPANSION REQUIRED 🚨🚨🚨
+🚨🚨🚨 PREVIOUS ATTEMPT FAILED: Only ${previousWordCount} words (REJECTED) 🚨🚨🚨
 
-Your previous draft had only ${previousWordCount} words. This is too short.
-The target is 1500-2000 words for a comprehensive audio briefing. You need at least ${wordsPerTopic} words PER TOPIC.
+MATHEMATICAL BREAKDOWN:
+Topics: ${topicCount}
+Target: 1800 words minimum
+Per topic: ${wordsPerTopic} words minimum
 
-MATHEMATICAL REQUIREMENT:
-You have ${topicCount} topics available. To reach 1500+ words total:
-- You MUST write ${wordsPerTopic}+ words PER TOPIC
-- That means 3-4 FULL paragraphs for EACH topic
-- Each paragraph should be 60-80 words minimum
+EXPANSION CHECKLIST (MANDATORY FOR EACH TOPIC):
+□ Background/context paragraph (60-80 words)
+□ Detailed facts from sources (80-100 words)
+□ Implications and analysis (60-80 words)
+□ Transitional phrase to next topic (10-20 words)
 
 MANDATORY EXPANSION TECHNIQUES:
 1. START each topic with context/background (1 paragraph)
-2. DETAIL the specific facts from source articles (1-2 paragraphs)  
+2. DETAIL the specific facts from source articles (2 paragraphs)
 3. EXPLAIN the significance and implications (1 paragraph)
 4. ADD transitional phrases between topics
 5. INCLUDE relevant details: names, dates, numbers, locations, quotes
 6. ELABORATE on how this impacts people/industry/society
 
-DO NOT write brief summaries. This is a COMPREHENSIVE audio briefing, not a headline list.
-Your previous ${previousWordCount}-word draft was rejected. Write ${wordsPerTopic}+ words per topic NOW.
+DO NOT write brief summaries. This is a COMPREHENSIVE 5-10 minute audio briefing.
+YOUR PREVIOUS ${previousWordCount}-WORD DRAFT WAS TOO SHORT. Write ${wordsPerTopic}+ words for EACH topic NOW.
 ` : `
 
 📊 LENGTH REQUIREMENT (STRICTLY ENFORCED):
-You have ${topicCount} topics. You MUST write ${wordsPerTopic}+ words PER TOPIC to reach the 1500-2000 word target.
-- That means 3-4 full paragraphs per topic
+You have ${topicCount} topics. You MUST write ${wordsPerTopic}+ words PER TOPIC to reach the 1800-2000 word target.
+- That means 3-4 full paragraphs per topic (200-250 words each)
 - Include context, details, analysis, and implications
-- This is a comprehensive audio briefing, not a headline summary
+- This is a comprehensive 5-10 minute audio briefing, not a headline summary
 `;
 
   const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, numbers, and citations.${retryExpansionPrompt}
@@ -349,11 +349,11 @@ CRITICAL REQUIREMENTS:
 - Start with EXACTLY: "Here's your morning report for ${formattedDate}."
 - Include a brief "On This Day in History" section (1-2 sentences) near the end, before the closing
 - End with EXACTLY: "That's it for the morning report. Have a great day!"
-- MUST be 1500-2000 words (target length for 5-10 minute audio briefing)
-- MINIMUM 1500 words - this is NON-NEGOTIABLE for proper audio duration
-- Each topic should receive 2-3 paragraphs of coverage (150-200 words per topic)
+- MUST be 1800-2000 words (target length for 5-10 minute audio briefing)
+- MINIMUM 1200 words - this is NON-NEGOTIABLE for proper audio duration
+- Each topic should receive 3-4 paragraphs of coverage (200-250 words per topic)
 - Include transitional phrases, context, and analysis to reach target length
-- If you have 6-8 topics, aim for 200-250 words per topic to hit 1500+ total
+- Aim for ${wordsPerTopic}+ words per topic to hit 1800+ total
 - EVERY story MUST include SPECIFIC details: names, numbers, locations, dates, companies
 - ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
 - REJECT generic content - if source data lacks specifics, skip that topic entirely
@@ -452,25 +452,26 @@ Write your news report now. Remember:
   const systemMessage = `You are a professional news anchor writing comprehensive daily audio news briefings for Morning Report.
 
 🔴 ABSOLUTE REQUIREMENTS (FAILURE = REJECTION):
-1. LENGTH: MINIMUM 1500 words, target 1500-2000 words. This is for a 5-10 minute AUDIO briefing.
-   - Short reports (under 1500 words) will be REJECTED and you will be asked to rewrite
-   - Write 3-4 FULL paragraphs (250+ words) per topic
+1. LENGTH: MINIMUM 1200 words, target 1800-2000 words. This is for a 5-10 minute AUDIO briefing.
+   - Short reports (under 1200 words) will be REJECTED and you will be asked to rewrite
+   - Write 3-4 FULL paragraphs (200-250 words) per topic
+   - With ${topicCount} topics, you need ${wordsPerTopic}+ words PER topic
    - This is NOT a headline summary - it's a comprehensive audio briefing
-   
-2. STRUCTURE: 
+
+2. STRUCTURE:
    - Start EXACTLY: "Here's your morning report for [date]."
    - End EXACTLY: "That's it for the morning report. Have a great day!"
    - Include "On This Day in History" (1-2 sentences) before closing
-   
+
 3. QUALITY: Every story requires specific names, numbers, locations, dates - NO generic phrases
 
 4. FRESHNESS: DO NOT repeat stories from previous 5 reports unless there's a genuinely NEW development
    - Listeners expect DIFFERENT news each day, not rehashed content
    - When in doubt, skip the story and find fresh news instead
-   
+
 5. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
 
-These are HARD requirements. Reports under 1500 words or with repeated stories are automatically rejected.`;
+These are HARD requirements. Reports under 1200 words or with repeated stories are automatically rejected.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
@@ -484,7 +485,7 @@ These are HARD requirements. Reports under 1500 words or with repeated stories a
         content: prompt,
       },
     ],
-    max_completion_tokens: 4500, // Increased for longer reports
+    max_completion_tokens: 6000, // Increased to 6000 to support 1800-2000 word reports (~2667 tokens + 30% buffer)
   });
 
   const content = response.choices[0].message.content || "";
