@@ -75,10 +75,10 @@ async function incrementCurrentsUsage(): Promise<void> {
 
 // Topic freshness tiers
 // Tier 1 (Breaking News): 24 hours - time-sensitive news that goes stale quickly
-// Tier 2 (Tech/Science): 96 hours (4 days) - slower-moving tech/science stories
+// Tier 2 (Tech/Science): 120 hours (5 days) - slower-moving tech/science stories
 const FRESHNESS_TIERS = {
-  breaking: 24, // hours
-  tech: 96,     // hours (4 days)
+  breaking: 24,  // hours
+  tech: 120,     // hours (5 days) - allows for weekend gaps in tech news
 };
 
 // News topics configuration with primary and simplified fallback queries
@@ -91,10 +91,10 @@ export const NEWS_TOPICS = [
   { name: "Electric Vehicles", query: "electric vehicle EV Tesla Rivian", fallbackQuery: "electric car", freshness: FRESHNESS_TIERS.tech },
   { name: "Autonomous Driving", query: "self-driving autonomous vehicle", fallbackQuery: "self driving car", freshness: FRESHNESS_TIERS.tech },
   { name: "Humanoid Robots", query: "humanoid robot Tesla Optimus", fallbackQuery: "robot technology", freshness: FRESHNESS_TIERS.tech },
-  { name: "eVTOL & Flying Vehicles", query: "flying car urban air mobility", fallbackQuery: "electric aircraft", freshness: FRESHNESS_TIERS.tech },
+  { name: "eVTOL & Flying Vehicles", query: "flying car urban air mobility", fallbackQuery: "electric aviation aircraft", freshness: FRESHNESS_TIERS.tech },
   { name: "Tech Gadgets", query: "consumer technology gadget smartphone", fallbackQuery: "new tech products", freshness: FRESHNESS_TIERS.tech },
-  { name: "Anti-Aging Science", query: "longevity anti-aging research", fallbackQuery: "aging research", freshness: FRESHNESS_TIERS.tech },
-  { name: "Virtual Medicine", query: "telemedicine digital health telehealth", fallbackQuery: "virtual doctor", freshness: FRESHNESS_TIERS.tech },
+  { name: "Anti-Aging Science", query: "longevity anti-aging research", fallbackQuery: "aging health research medicine", freshness: FRESHNESS_TIERS.tech },
+  { name: "Virtual Medicine", query: "telemedicine digital health telehealth", fallbackQuery: "online healthcare medical technology", freshness: FRESHNESS_TIERS.tech },
   { name: "Travel", query: "travel industry airlines destinations", fallbackQuery: "travel news", freshness: FRESHNESS_TIERS.breaking },
 ];
 
@@ -948,9 +948,9 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
   if (stillMissingUnderrepresented.length > 0) {
     console.log(`\n[Phase 3] Targeted fallback for ${stillMissingUnderrepresented.length} underrepresented topics...`);
     await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay before targeted fallback
-    
-    // Limit to 3 targeted searches per run to preserve API quota
-    const topicsToTarget = stillMissingUnderrepresented.slice(0, 3);
+
+    // Limit to 5 targeted searches per run to preserve API quota while improving coverage
+    const topicsToTarget = stillMissingUnderrepresented.slice(0, 5);
     
     for (const topic of topicsToTarget) {
       try {

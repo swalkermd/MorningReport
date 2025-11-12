@@ -25,20 +25,20 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   
   const successfulTopics = newsContent.filter(content => content.articles.length > 0);
   console.log(`Step 2: Retrieved news for ${successfulTopics.length} topics`);
-  
+
   // Topic coverage monitoring - compare against all 13 expected topics
   console.log('\n=== TOPIC COVERAGE SUMMARY ===');
   console.log(`✓ Successful: ${successfulTopics.length}/${NEWS_TOPICS.length} topics`);
   console.log('With data:', successfulTopics.map(t => t.topic).join(', ') || 'None');
-  
+
   // Find which topics are missing by comparing with full NEWS_TOPICS list
   const successfulTopicNames = new Set(successfulTopics.map(t => t.topic));
   const failedTopics = NEWS_TOPICS.filter(t => !successfulTopicNames.has(t.name)).map(t => t.name);
-  
+
   if (failedTopics.length > 0) {
     console.log(`✗ Missing: ${failedTopics.length}/${NEWS_TOPICS.length} topics`);
     console.log('Without data:', failedTopics.join(', '));
-    
+
     if (failedTopics.length > 8) {
       console.warn('\n⚠️  HIGH FAILURE RATE: This is likely due to API rate limiting during testing');
       console.warn('In production (once daily at 5:30 AM), expect 10-13/13 topics to succeed');
@@ -49,6 +49,17 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
     console.log('✓ Perfect coverage: All 13 topics have data!');
   }
   console.log('==============================\n');
+
+  // REJECT if too few topics - prevents generating low-quality reports
+  const MINIMUM_TOPICS_FOR_QUALITY = 8;
+  if (successfulTopics.length < MINIMUM_TOPICS_FOR_QUALITY) {
+    throw new Error(
+      `Insufficient topic coverage: ${successfulTopics.length}/${NEWS_TOPICS.length} topics. ` +
+      `Minimum ${MINIMUM_TOPICS_FOR_QUALITY} required for quality report. ` +
+      `Missing: ${failedTopics.join(', ')}. ` +
+      `This may be due to API rate limiting or network issues. Please try again later.`
+    );
+  }
   
   console.log(`Step 3: Using ${previousReports.length} previous reports for context`);
   console.log("Step 4: Generating AI news report...");
