@@ -9,7 +9,9 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend uses React with TypeScript, Vite, Wouter for routing, TanStack Query for state management, and Tailwind CSS with shadcn/ui components. It prioritizes an audio-first, responsive design with distinct layouts for landscape and portrait orientations, featuring a warm morning aesthetic. Key components include a custom `AudioPlayer` for multi-segment playback with intro music fade-in/out, and a `ReportDisplay` for the scrollable text report.
+The frontend uses React with TypeScript, Vite, Wouter for routing, TanStack Query for state management, and Tailwind CSS with shadcn/ui components. It prioritizes an audio-first, responsive design with distinct layouts for landscape and portrait orientations, featuring a warm morning aesthetic. Key components include:
+-   **AudioPlayer:** Handles multi-segment audio playback with seamless transitions. Intro music plays only at start (with fade-in) and as outro after final segment (with fade-out). Segments transition automatically without intro music between them to ensure continuous playback. Supports play/pause, progress slider with cross-segment seeking, and 1.1x playback speed.
+-   **ReportDisplay:** Scrollable text display of the news report content.
 
 ### Backend
 The backend is built with Node.js and Express in TypeScript, using in-memory storage with an interface for future database migration.
