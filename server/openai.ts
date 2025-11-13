@@ -74,6 +74,83 @@ const SENSITIVE_KEYWORDS = [
 ];
 
 /**
+ * Detects if an article is a generic portal/homepage without actual news content
+ * These articles cause GPT to hallucinate details to fill content gaps
+ */
+function isGenericPortalArticle(article: { title: string; summary: string; url?: string }): boolean {
+  const title = article.title.toLowerCase();
+  const summary = article.summary.toLowerCase();
+  const url = (article.url || '').toLowerCase();
+  
+  // Generic portal keywords that appear in titles
+  const genericKeywords = ['news', 'scores', 'updates', 'coverage', 'analysis', 'standings', 'playoff'];
+  
+  // Count how many generic keywords appear in the title
+  const genericKeywordCount = genericKeywords.filter(keyword => title.includes(keyword)).length;
+  
+  // Additional strong indicators of generic portals
+  const strongPortalIndicators = [
+    /\|/,  // Pipe separator (e.g., "NBA News | Sports Illustrated")
+    /breaking news/,
+    /latest news/,
+    /up-to-the-minute/,
+    /complete coverage/,
+    /expert analysis/,
+    /game scores/,
+  ];
+  
+  const hasStrongPortalIndicator = strongPortalIndicators.some(pattern => pattern.test(title));
+  
+  // Portal/homepage URL patterns
+  const portalUrlPatterns = [
+    /\/(nba|sports|news|technology|health)\/?$/,  // Category homepage
+    /\/index\.(html?|php)$/,                       // Index pages
+    /^https?:\/\/[^\/]+\/?$/,                      // Root domain
+  ];
+  
+  // Generic summary indicators (no specific story details)
+  const genericSummaryPatterns = [
+    /^(up-to-the-minute|complete|comprehensive|latest)\s+(news|coverage|analysis)/,
+    /players like.*still bring/,  // Generic player mentions without specific story
+    /veterans? like/,
+    /younger players? like/,
+  ];
+  
+  // Check URL patterns
+  const isPortalUrl = portalUrlPatterns.some(pattern => pattern.test(url));
+  
+  // Check summary patterns
+  const hasGenericSummary = genericSummaryPatterns.some(pattern => pattern.test(summary));
+  
+  // An article is generic if:
+  // - It has 2+ generic keywords in the title (e.g., "NBA News, Scores & Expert Analysis")
+  // - OR it has a strong portal indicator in the title
+  // - OR it has both a portal URL and a generic summary
+  const isGeneric = 
+    (genericKeywordCount >= 2) ||
+    hasStrongPortalIndicator ||
+    (isPortalUrl && hasGenericSummary);
+  
+  if (isGeneric) {
+    console.warn(`[Portal Filter] Filtered generic portal article: "${article.title.substring(0, 60)}..." from ${article.url || 'unknown source'}`);
+    console.warn(`[Portal Filter]   Reasons: keywords=${genericKeywordCount}, strongIndicator=${hasStrongPortalIndicator}, portalUrl=${isPortalUrl}, genericSummary=${hasGenericSummary}`);
+  }
+  
+  return isGeneric;
+}
+
+/**
+ * Filters out generic portal/homepage articles that lack specific news content
+ * Prevents GPT from hallucinating details to fill content gaps
+ */
+function filterGenericPortalArticles(newsContent: NewsContent[]): NewsContent[] {
+  return newsContent.map(topic => ({
+    ...topic,
+    articles: topic.articles.filter(article => !isGenericPortalArticle(article))
+  })).filter(topic => topic.articles.length > 0);
+}
+
+/**
  * Filters out articles containing highly graphic terms
  * Used as fallback when GPT refuses to generate content
  */
@@ -100,8 +177,13 @@ export async function generateNewsReport(
   previousReports: string[],
   reportDate: Date
 ): Promise<string> {
+  // CRITICAL: Filter out generic portal/homepage articles BEFORE generation
+  // This prevents GPT from hallucinating details to fill content gaps
+  const filteredNewsContent = filterGenericPortalArticles(newsContent);
+  console.log(`[Portal Filter] Filtered from ${newsContent.length} to ${filteredNewsContent.length} topics after removing generic portals`);
+  
   // Filter out topics with no valid articles
-  const validNewsContent = newsContent.filter(section => section.articles.length > 0);
+  const validNewsContent = filteredNewsContent.filter(section => section.articles.length > 0);
   
   if (validNewsContent.length === 0) {
     throw new Error('No valid news articles available - cannot generate quality report');
@@ -160,9 +242,9 @@ async function attemptGenerateReport(
       const wordCount = report.split(/\s+/).length;
       console.log(`[Report Length] Generated ${wordCount} words (target: 1800-2000) [attempt ${attempt}/${maxAttempts}]`);
 
-      // STRICT minimum: Never accept reports under 1200 words regardless of topic count
-      // This ensures 5-10 minute audio duration (1200 words ≈ 4-5 minutes minimum)
-      const ABSOLUTE_MINIMUM = 1200;
+      // Flexible length requirements: Prioritize accuracy over word count
+      // A shorter accurate report is better than a longer hallucinated one
+      const ABSOLUTE_MINIMUM = 700; // Reduced from 1200 to allow accurate but shorter reports
       const IDEAL_TARGET = 1800;
 
       console.log(`[Report Length] Minimum: ${ABSOLUTE_MINIMUM} words, Target: ${IDEAL_TARGET} words (${topicCount} topics)`);
@@ -170,8 +252,8 @@ async function attemptGenerateReport(
       if (wordCount >= IDEAL_TARGET) {
         console.log(`[Report Length] ✓ Excellent length: ${wordCount} words`);
         return report;
-      } else if (wordCount >= ABSOLUTE_MINIMUM && topicCount >= 8) {
-        console.warn(`[Report Length] ⚠ Acceptable but short: ${wordCount} words (target: ${IDEAL_TARGET})`);
+      } else if (wordCount >= ABSOLUTE_MINIMUM) {
+        console.warn(`[Report Length] ⚠ Acceptable: ${wordCount} words (target: ${IDEAL_TARGET}, but accuracy > length)`);
         return report;
       }
       
@@ -338,6 +420,42 @@ You have ${topicCount} topics. You MUST write ${wordsPerTopic}+ words PER TOPIC 
 
   const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, numbers, and citations.${retryExpansionPrompt}
 
+🚨🚨🚨 ANTI-HALLUCINATION POLICY (ABSOLUTE REQUIREMENT) 🚨🚨🚨
+
+YOU MUST ONLY USE INFORMATION EXPLICITLY STATED IN THE PROVIDED SOURCE ARTICLES.
+
+FORBIDDEN ACTIONS (IMMEDIATE DISQUALIFICATION):
+❌ NEVER fabricate games, scores, or events not in source articles
+❌ NEVER add player names, statistics, or details not explicitly mentioned in sources
+❌ NEVER invent quotes, numbers, or facts to fill word count
+❌ NEVER use your training data knowledge to supplement missing information
+❌ NEVER make assumptions about who is coaching, playing, or leading organizations
+❌ NEVER describe events as if you witnessed them when sources don't provide those details
+
+REQUIRED ACTIONS (MANDATORY):
+✅ ONLY report facts explicitly stated in the provided source articles
+✅ If a source article is a generic portal/homepage (e.g., "NBA News, Scores & Expert Analysis"), it contains NO newsworthy information - SKIP that topic entirely
+✅ If an article lacks specific details (names, numbers, dates), SKIP that topic
+✅ If you cannot write a story using ONLY the provided source information, DO NOT write about that topic
+✅ Better to skip a topic than to make up information
+✅ If sources contradict each other, skip that story entirely
+✅ If you're unsure whether something is in the source, DON'T include it
+
+VERIFICATION CHECKLIST for EVERY fact you write:
+□ Is this specific fact explicitly stated in a source article?
+□ Did the source article provide the name/number/date I'm writing?
+□ Am I copying information from the source, not from my training data?
+□ If the source is vague or generic, am I skipping this topic?
+
+EXAMPLES OF VIOLATIONS:
+Source: "NBA News, Scores & Expert Analysis | Sports Illustrated"
+❌ WRONG: "The Lakers defeated the Heat 112-108 last night with LeBron James leading..."
+✅ CORRECT: Skip this topic - the source is a generic portal with no game details
+
+Source: "Tesla continues work on battery technology"
+❌ WRONG: "Tesla CEO Elon Musk announced a 30% range improvement at the Texas facility..."
+✅ CORRECT: Only include facts the article explicitly states, or skip if too vague
+
 SENSITIVE CONTENT POLICY:
 - You MUST cover crime, violence, and other difficult news topics professionally
 - Use neutral, factual tone without graphic details
@@ -349,11 +467,10 @@ CRITICAL REQUIREMENTS:
 - Start with EXACTLY: "Here's your morning report for ${formattedDate}."
 - Include a brief "On This Day in History" section (1-2 sentences) near the end, before the closing
 - End with EXACTLY: "That's it for the morning report. Have a great day!"
-- MUST be 1800-2000 words (target length for 5-10 minute audio briefing)
-- MINIMUM 1200 words - this is NON-NEGOTIABLE for proper audio duration
-- Each topic should receive 3-4 paragraphs of coverage (200-250 words per topic)
-- Include transitional phrases, context, and analysis to reach target length
-- Aim for ${wordsPerTopic}+ words per topic to hit 1800+ total
+- TARGET: 1800-2000 words for a comprehensive 5-10 minute audio briefing
+- MINIMUM: 700 words (but ACCURACY always trumps length - a 500-word accurate report beats a 2000-word fabricated one)
+- Each topic SHOULD receive 3-4 paragraphs (200-250 words) IF sources provide sufficient detail
+- If sources are insufficient, write less or skip the topic entirely - NEVER fabricate to meet word count
 - EVERY story MUST include SPECIFIC details: names, numbers, locations, dates, companies
 - ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
 - REJECT generic content - if source data lacks specifics, skip that topic entirely
@@ -402,16 +519,19 @@ CITATION REQUIREMENTS:
 - When citing: use natural attribution (e.g., "according to Bloomberg", "Reuters reports")
 - Include publication dates only when relevant to the story's timeliness
 
-CONTENT SELECTION:
+CONTENT SELECTION (ACCURACY > WORD COUNT):
 - PRIORITY TOPICS (prioritize these if notable): NBA, Redlands CA Local News
 - TOPIC BALANCE: Each topic should appear at least once every 5 reports to ensure comprehensive coverage
 - Only include stories with SPECIFIC, verifiable facts
 - MUST have: organization/person name + number/metric + location/timeframe
 - Skip any topic where source data is too vague or story isn't newsworthy
-- Better to cover stories well than force inclusion of unremarkable content
+- 🚨 CRITICAL: Better to skip topics and have a shorter report than to fabricate information
+- 🚨 ACCURACY ALWAYS TRUMPS WORD COUNT - a 1000-word accurate report is better than a 2000-word hallucinated report
+- If you can only find verifiable information for 6-8 topics, write ONLY about those topics
 - Focus on: major announcements, statistical changes, product launches, policy decisions
 - If NBA or Redlands news is notable and meets quality standards, prioritize it
-- Skip any topic (including priority topics) if the news isn't significant or lacks specifics${topicBalanceGuidance}
+- Skip any topic (including priority topics) if the news isn't significant or lacks specifics
+- If a topic has only generic portal links with no actual news stories, SKIP it entirely${topicBalanceGuidance}
 
 ON THIS DAY IN HISTORY:
 - After covering the main news topics, include a brief "On This Day in History" segment
@@ -451,12 +571,14 @@ Write your news report now. Remember:
   // Enhanced system message with non-negotiable requirements
   const systemMessage = `You are a professional news anchor writing comprehensive daily audio news briefings for Morning Report.
 
-🔴 ABSOLUTE REQUIREMENTS (FAILURE = REJECTION):
-1. LENGTH: MINIMUM 1200 words, target 1800-2000 words. This is for a 5-10 minute AUDIO briefing.
-   - Short reports (under 1200 words) will be REJECTED and you will be asked to rewrite
-   - Write 3-4 FULL paragraphs (200-250 words) per topic
-   - With ${topicCount} topics, you need ${wordsPerTopic}+ words PER topic
-   - This is NOT a headline summary - it's a comprehensive audio briefing
+🔴 ABSOLUTE REQUIREMENTS (RANKED BY PRIORITY):
+
+1. ACCURACY (HIGHEST PRIORITY - NEVER COMPROMISE):
+   🚨 ONLY use information explicitly stated in source articles
+   🚨 NEVER fabricate facts, statistics, names, or events
+   🚨 If a source is a generic portal/homepage, SKIP that topic
+   🚨 Better to skip topics than to make up information
+   🚨 ACCURACY ALWAYS TRUMPS WORD COUNT
 
 2. STRUCTURE:
    - Start EXACTLY: "Here's your morning report for [date]."
@@ -464,14 +586,21 @@ Write your news report now. Remember:
    - Include "On This Day in History" (1-2 sentences) before closing
 
 3. QUALITY: Every story requires specific names, numbers, locations, dates - NO generic phrases
+   - If sources don't provide specifics, SKIP that topic
 
-4. FRESHNESS: DO NOT repeat stories from previous 5 reports unless there's a genuinely NEW development
+4. LENGTH: TARGET 1800-2000 words for a comprehensive 5-10 minute audio briefing
+   - MINIMUM 700 words (but can be shorter if that's all the verifiable information available)
+   - CRITICAL: ACCURACY > LENGTH. A 500-word accurate report is better than a 2000-word fabricated report
+   - Write 3-4 FULL paragraphs (200-250 words) per topic ONLY when sources provide sufficient detail
+   - If sources are insufficient, write less or skip topics - NEVER invent facts to reach word count
+
+5. FRESHNESS: DO NOT repeat stories from previous 5 reports unless there's a genuinely NEW development
    - Listeners expect DIFFERENT news each day, not rehashed content
    - When in doubt, skip the story and find fresh news instead
 
-5. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
+6. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
 
-These are HARD requirements. Reports under 1200 words or with repeated stories are automatically rejected.`;
+PRIORITY ORDER: Accuracy > Quality > Structure > Freshness > Length`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
