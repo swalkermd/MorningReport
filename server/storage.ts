@@ -1,7 +1,9 @@
-import { type User, type InsertUser, type Report, type InsertReport } from "@shared/schema";
+import { type User, type InsertUser, type Report, type InsertReport, users, reports } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -203,5 +205,77 @@ export class FileStorage implements IStorage {
   }
 }
 
-// Use FileStorage in production for persistence
-export const storage = new FileStorage();
+/**
+ * PostgreSQL database storage implementation using Drizzle ORM
+ * Provides persistent storage across deployments
+ */
+export class DbStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async createReport(insertReport: InsertReport): Promise<Report> {
+    const result = await db.insert(reports).values(insertReport).returning();
+    return result[0];
+  }
+
+  async getLatestReport(): Promise<Report | undefined> {
+    const result = await db
+      .select()
+      .from(reports)
+      .orderBy(desc(reports.generatedAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async getRecentReports(limit: number): Promise<Report[]> {
+    return await db
+      .select()
+      .from(reports)
+      .orderBy(desc(reports.date))
+      .limit(limit);
+  }
+
+  async getReportById(id: string): Promise<Report | undefined> {
+    const result = await db.select().from(reports).where(eq(reports.id, id)).limit(1);
+    return result[0];
+  }
+}
+
+/**
+ * Environment-driven storage selector
+ * - postgres: Use PostgreSQL (production, persistent across deployments)
+ * - file: Use file-based storage (development, legacy)
+ * - memory: Use in-memory storage (testing, ephemeral)
+ */
+function createStorage(): IStorage {
+  const storageMode = process.env.STORAGE_MODE || "file";
+  
+  switch (storageMode) {
+    case "postgres":
+      console.log("[Storage] Using PostgreSQL (DbStorage)");
+      return new DbStorage();
+    case "file":
+      console.log("[Storage] Using file-based storage (FileStorage)");
+      return new FileStorage();
+    case "memory":
+      console.log("[Storage] Using in-memory storage (MemStorage)");
+      return new MemStorage();
+    default:
+      console.warn(`[Storage] Unknown STORAGE_MODE: ${storageMode}, defaulting to file`);
+      return new FileStorage();
+  }
+}
+
+export const storage = createStorage();

@@ -26,7 +26,16 @@ The backend is built with Node.js and Express in TypeScript, using in-memory sto
 -   Static file serving for `/audio` directory.
 
 ### Data Storage
-Currently uses in-memory storage for users and reports, implementing an `IStorage` interface for future migration. Schema is defined using Drizzle ORM for PostgreSQL compatibility, including `users` and `reports` tables (with `audioPath` and `audioPaths` fields).
+Implements a flexible storage architecture with environment-driven selection via `STORAGE_MODE` environment variable:
+
+**Storage Modes:**
+-   **PostgreSQL (DbStorage)** - Production default. Uses Neon Serverless PostgreSQL for persistent storage across deployments. Implements full CRUD operations via Drizzle ORM.
+-   **File-based (FileStorage)** - Development fallback. Persists reports to `/data/reports.json` with automatic load/save. Not recommended for production (ephemeral storage).
+-   **In-memory (MemStorage)** - Testing only. Volatile storage, cleared on restart.
+
+**Schema:** Uses Drizzle ORM with PostgreSQL-compatible schema including `users` and `reports` tables (with `audioPath` and `audioPaths` fields for single/multi-segment audio).
+
+**Storage Mode Validation:** The scheduler validates that audio storage mode (local filesystem paths vs. cloud URLs) matches the environment before generating reports, preventing production playback failures caused by dev/prod database sharing.
 
 ## External Dependencies
 
@@ -48,8 +57,9 @@ Currently uses in-memory storage for users and reports, implementing an `IStorag
 -   Manual regeneration via API endpoint supports optional `forceRefresh` parameter (defaults to using cache).
 -   Validates cache for minimum topic coverage (at least 5 topics) before using.
 
-**Database (Future):**
--   Neon Serverless PostgreSQL is configured for a future migration path. (Requires `DATABASE_URL`)
+**Database:**
+-   Neon Serverless PostgreSQL for persistent report storage in production. (Requires `DATABASE_URL`)
+-   Accessed via Drizzle ORM through `DbStorage` class when `STORAGE_MODE=postgres`
 
 **File Storage:**
 -   Local filesystem for audio files in `/audio-reports`, served statically.
@@ -62,6 +72,7 @@ Currently uses in-memory storage for users and reports, implementing an `IStorag
 -   Replit-specific plugins and Vite HMR.
 
 **Production Configuration:**
--   Requires `NODE_ENV=production` and all API keys and a `SESSION_SECRET`.
--   Persists reports to `/data/reports.json` and audio files to `/audio-reports/` with 30-day retention.
+-   Requires `NODE_ENV=production`, `STORAGE_MODE=postgres`, all API keys, and a `SESSION_SECRET`.
+-   Persists reports to PostgreSQL database and audio files to Google Cloud Storage (cloud URLs).
 -   Development-only endpoints are locked in production for security.
+-   Storage mode validation prevents audio path mismatches between dev/prod environments.
