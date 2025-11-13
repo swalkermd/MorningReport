@@ -394,18 +394,18 @@ Target: 1800 words minimum
 Per topic: ${wordsPerTopic} words minimum
 
 EXPANSION CHECKLIST (MANDATORY FOR EACH TOPIC):
-□ Background/context paragraph (60-80 words)
-□ Detailed facts from sources (80-100 words)
-□ Implications and analysis (60-80 words)
+□ Background/context paragraph with factual details from sources (60-80 words)
+□ Detailed facts from sources: names, numbers, dates, locations (80-100 words)
+□ Additional factual context and specific details from sources (60-80 words)
 □ Transitional phrase to next topic (10-20 words)
 
 MANDATORY EXPANSION TECHNIQUES:
-1. START each topic with context/background (1 paragraph)
+1. START each topic with factual context/background from the sources (1 paragraph)
 2. DETAIL the specific facts from source articles (2 paragraphs)
-3. EXPLAIN the significance and implications (1 paragraph)
+3. ADD more factual details from sources: names, dates, numbers, locations, specific events
 4. ADD transitional phrases between topics
-5. INCLUDE relevant details: names, dates, numbers, locations, quotes
-6. ELABORATE on how this impacts people/industry/society
+5. INCLUDE all relevant factual details from sources
+6. ELABORATE with additional facts from the source articles, NOT speculation
 
 DO NOT write brief summaries. This is a COMPREHENSIVE 5-10 minute audio briefing.
 YOUR PREVIOUS ${previousWordCount}-WORD DRAFT WAS TOO SHORT. Write ${wordsPerTopic}+ words for EACH topic NOW.
@@ -414,11 +414,11 @@ YOUR PREVIOUS ${previousWordCount}-WORD DRAFT WAS TOO SHORT. Write ${wordsPerTop
 📊 LENGTH REQUIREMENT (STRICTLY ENFORCED):
 You have ${topicCount} topics. You MUST write ${wordsPerTopic}+ words PER TOPIC to reach the 1800-2000 word target.
 - That means 3-4 full paragraphs per topic (200-250 words each)
-- Include context, details, analysis, and implications
+- Include factual context, detailed facts, and additional relevant details from sources
 - This is a comprehensive 5-10 minute audio briefing, not a headline summary
 `;
 
-  const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, numbers, and citations.${retryExpansionPrompt}
+  const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, and numbers.${retryExpansionPrompt}
 
 🚨🚨🚨 ANTI-HALLUCINATION POLICY (ABSOLUTE REQUIREMENT) 🚨🚨🚨
 
@@ -514,12 +514,19 @@ REQUIRED FORMAT for each story:
 ✅ "[Organization] launched [specific product/initiative] featuring [details]"
 
 CITATION REQUIREMENTS:
-- Only cite sources when pertinent to the story's credibility or context
-- Sources are NOT required for every piece of information
-- When citing: use natural attribution (e.g., "according to Bloomberg", "Reuters reports")
-- Include publication dates only when relevant to the story's timeliness
+- DO NOT cite sources in the report
+- NO attribution phrases like "according to", "Reuters reports", etc.
+- NO publication dates or source references
+- Simply state the facts directly as a news anchor would
 
 CONTENT SELECTION (ACCURACY > WORD COUNT):
+- 🚨 MOST IMPORTANT STORY FIRST: For each topic, identify and report the MOST SIGNIFICANT/BREAKING story
+  - Major product launches (e.g., "OpenAI releases new LLM model") > minor updates
+  - Breaking announcements > ongoing developments
+  - Industry-changing news > incremental progress
+  - Ask yourself: "What's the BIGGEST news in this topic area today?"
+  - Example: If OpenAI released a new LLM model yesterday, that's MAJOR AI news and MUST be covered
+  - Skip smaller stories if a major story exists in the same topic
 - PRIORITY TOPICS (prioritize these if notable): NBA, Redlands CA Local News
 - TOPIC BALANCE: Each topic should appear at least once every 5 reports to ensure comprehensive coverage
 - Only include stories with SPECIFIC, verifiable facts
@@ -557,16 +564,24 @@ DELIVERY STYLE:
   ✅ "On the automotive front, Tesla announced..."
   ❌ "World News. The United Nations..."
   ❌ "NBA. The Dallas Mavericks..."
-- NO editorializing or speculation
+
+🚨 STRICTLY PROHIBITED - NO EDITORIALIZATION:
+- DO NOT add your own analysis, opinions, or interpretation
+- DO NOT speculate about future implications or what "might" happen
+- DO NOT editorialize or add commentary beyond the facts
+- DO NOT use phrases like "this could signal", "this may indicate", "experts believe"
+- Simply report what happened - names, numbers, dates, facts
+- Let the facts speak for themselves without editorial framing
 
 NEWS CONTENT BY TOPIC:
 ${newsContentStr}${previousReportsContext}
 
 Write your news report now. Remember: 
-1. SPECIFIC FACTS ONLY (names + numbers + dates)
-2. Cite sources only when pertinent to the story
-3. If a story can't meet quality standards, skip it entirely
-4. DO NOT REPEAT stories from previous reports unless there's a NEW development with NEW facts`;
+1. SELECT THE MOST IMPORTANT/BREAKING story for each topic area
+2. SPECIFIC FACTS ONLY (names + numbers + dates) - NO editorialization or speculation
+3. DO NOT cite sources or include attribution phrases
+4. If a story can't meet quality standards, skip it entirely
+5. DO NOT REPEAT stories from previous reports unless there's a NEW development with NEW facts`;
 
   // Enhanced system message with non-negotiable requirements
   const systemMessage = `You are a professional news anchor writing comprehensive daily audio news briefings for Morning Report.
