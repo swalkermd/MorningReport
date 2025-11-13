@@ -152,95 +152,99 @@ export function AudioPlayer({ audioPath, audioPaths, reportDate, "data-testid": 
       loadedAudioPathRef.current = currentAudioPath;
       
       const handleEnded = async () => {
-        const intro = introAudioRef.current;
-        if (!intro) return;
-        
-        // Play intro music between segments or at the end
-        setIsIntroPlaying(true);
-        intro.currentTime = 0;
-        intro.volume = 0;
-        
-        try {
-          await intro.play();
-          
-          // Fade in intro music
-          const fadeInSteps = 10;
-          const fadeInInterval = 50;
-          const targetVolume = 1;
-          const volumeIncrement = targetVolume / fadeInSteps;
-          
-          let fadeInIntervalId: NodeJS.Timeout | null = setInterval(() => {
-            if (intro.volume < targetVolume - volumeIncrement) {
-              intro.volume = Math.min(targetVolume, intro.volume + volumeIncrement);
-            } else {
-              intro.volume = targetVolume;
-              if (fadeInIntervalId) {
-                clearInterval(fadeInIntervalId);
-                fadeInIntervalId = null;
-              }
-            }
-          }, fadeInInterval);
-          
-          // Wait for metadata to get duration
-          if (!intro.duration) {
-            await new Promise<void>((resolve) => {
-              intro.addEventListener("loadedmetadata", () => resolve(), { once: true });
-            });
+        // Check if there are more segments to play
+        if (currentSegment < audioSegments.length - 1) {
+          // Inter-segment transition: skip intro music and immediately advance
+          console.log(`[AudioPlayer] Segment ${currentSegment + 1} ended, moving to segment ${currentSegment + 2}`);
+          setCurrentSegment(prev => prev + 1);
+          loadedAudioPathRef.current = null; // Clear so next segment loads
+          // isPlaying stays true, auto-play effect will start next segment
+        } else {
+          // Final segment ended: play intro music as outro
+          console.log("[AudioPlayer] Final segment ended, playing outro");
+          const intro = introAudioRef.current;
+          if (!intro) {
+            setIsPlaying(false);
+            setCurrentSegment(0);
+            hasPlayedIntroRef.current = false;
+            return;
           }
           
-          // Schedule fade out
-          if (intro.duration && intro.duration > 2) {
-            const fadeOutDuration = 2000;
-            const fadeOutStart = Math.max(0, (intro.duration - fadeOutDuration / 1000) * 1000);
+          setIsIntroPlaying(true);
+          intro.currentTime = 0;
+          intro.volume = 0;
+          
+          try {
+            await intro.play();
             
-            setTimeout(() => {
-              if (fadeInIntervalId) {
-                clearInterval(fadeInIntervalId);
+            // Fade in intro music
+            const fadeInSteps = 10;
+            const fadeInInterval = 50;
+            const targetVolume = 1;
+            const volumeIncrement = targetVolume / fadeInSteps;
+            
+            let fadeInIntervalId: NodeJS.Timeout | null = setInterval(() => {
+              if (intro.volume < targetVolume - volumeIncrement) {
+                intro.volume = Math.min(targetVolume, intro.volume + volumeIncrement);
+              } else {
+                intro.volume = targetVolume;
+                if (fadeInIntervalId) {
+                  clearInterval(fadeInIntervalId);
+                  fadeInIntervalId = null;
+                }
               }
+            }, fadeInInterval);
+            
+            // Wait for metadata to get duration
+            if (!intro.duration) {
+              await new Promise<void>((resolve) => {
+                intro.addEventListener("loadedmetadata", () => resolve(), { once: true });
+              });
+            }
+            
+            // Schedule fade out
+            if (intro.duration && intro.duration > 2) {
+              const fadeOutDuration = 2000;
+              const fadeOutStart = Math.max(0, (intro.duration - fadeOutDuration / 1000) * 1000);
               
-              const fadeSteps = 20;
-              const fadeInterval = fadeOutDuration / fadeSteps;
-              const volumeDecrement = intro.volume / fadeSteps;
-              
-              let fadeOutIntervalId: NodeJS.Timeout | null = setInterval(() => {
-                if (intro.volume > volumeDecrement) {
-                  intro.volume = Math.max(0, intro.volume - volumeDecrement);
-                } else {
-                  intro.volume = 0;
-                  intro.pause();
-                  if (fadeOutIntervalId) {
-                    clearInterval(fadeOutIntervalId);
-                    fadeOutIntervalId = null;
-                  }
-                  setIsIntroPlaying(false);
-                  
-                  // After music fades out, move to next segment or finish
-                  if (currentSegment < audioSegments.length - 1) {
-                    setCurrentSegment(prev => prev + 1);
-                    loadedAudioPathRef.current = null; // Clear so next segment loads
+              setTimeout(() => {
+                if (fadeInIntervalId) {
+                  clearInterval(fadeInIntervalId);
+                }
+                
+                const fadeSteps = 20;
+                const fadeInterval = fadeOutDuration / fadeSteps;
+                const volumeDecrement = intro.volume / fadeSteps;
+                
+                let fadeOutIntervalId: NodeJS.Timeout | null = setInterval(() => {
+                  if (intro.volume > volumeDecrement) {
+                    intro.volume = Math.max(0, intro.volume - volumeDecrement);
                   } else {
+                    intro.volume = 0;
+                    intro.pause();
+                    if (fadeOutIntervalId) {
+                      clearInterval(fadeOutIntervalId);
+                      fadeOutIntervalId = null;
+                    }
+                    setIsIntroPlaying(false);
+                    
                     // All segments done - stop playback
                     setIsPlaying(false);
                     setCurrentSegment(0);
                     loadedAudioPathRef.current = null;
                     hasPlayedIntroRef.current = false; // Reset for next play
                   }
-                }
-              }, fadeInterval);
-            }, fadeOutStart);
-          }
-        } catch (err) {
-          console.error("Error playing intro music between segments:", err);
-          // Fallback: just move to next segment
-          setIsIntroPlaying(false);
-          if (currentSegment < audioSegments.length - 1) {
-            setCurrentSegment(prev => prev + 1);
-            loadedAudioPathRef.current = null;
-          } else {
+                }, fadeInterval);
+              }, fadeOutStart);
+            }
+          } catch (err) {
+            console.error("Error playing outro music:", err);
+            // Fallback: just finish
+            setIsIntroPlaying(false);
             setIsPlaying(false);
             setCurrentSegment(0);
             loadedAudioPathRef.current = null;
-            hasPlayedIntroRef.current = false; // Reset for next play
+            hasPlayedIntroRef.current = false;
           }
         }
       };
