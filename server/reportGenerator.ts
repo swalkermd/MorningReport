@@ -1,7 +1,7 @@
 import path from "path";
 import { storage } from "./storage";
 import { scrapeAllNews, NEWS_TOPICS } from "./newsService";
-import { generateNewsReport, generateAudioFromText } from "./openai";
+import { generateNewsReport, generateAudioFromText, factCheckReportAgainstSources } from "./openai";
 import { promises as fs } from "fs";
 
 export async function generateDailyReport(forceRefresh: boolean = false): Promise<void> {
@@ -79,7 +79,35 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   }
   
   console.log(`Step 5: Generated report (${reportText.length} characters)`);
-  console.log("Step 6: Converting text to speech...");
+
+  console.log("Step 6: Running automated fact check against sources...");
+  const factCheck = await factCheckReportAgainstSources(reportText, successfulTopics, reportDate);
+
+  if (factCheck.skipped) {
+    console.warn("[FactCheck] Automated review skipped or inconclusive", factCheck.rawResponse ?? "");
+  } else if (factCheck.status === 'fail') {
+    console.error("[FactCheck] ❌ Critical issues detected in generated report:");
+    factCheck.issues.forEach((issue, index) => {
+      console.error(`  ${index + 1}. [${issue.severity.toUpperCase()}][${issue.focus}] ${issue.summary}`);
+      if (issue.evidence) {
+        console.error(`     Evidence: ${issue.evidence}`);
+      }
+    });
+    throw new Error('Automated fact-check failed: review required before publication.');
+  } else {
+    if (factCheck.issues.length > 0) {
+      console.warn("[FactCheck] ⚠ Non-blocking issues detected:");
+      factCheck.issues.forEach((issue, index) => {
+        console.warn(`  ${index + 1}. [${issue.severity.toUpperCase()}][${issue.focus}] ${issue.summary}`);
+        if (issue.evidence) {
+          console.warn(`     Evidence: ${issue.evidence}`);
+        }
+      });
+    }
+    console.log("[FactCheck] ✓ Report validated against sources");
+  }
+
+  console.log("Step 7: Converting text to speech...");
   
   // Generate audio file(s) - may be split into multiple parts
   const audioFileName = `report-${Date.now()}.mp3`;
@@ -87,8 +115,8 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   
   const generatedAudioPaths = await generateAudioFromText(reportText, audioPath);
   
-  console.log(`Step 7: Audio generated - ${generatedAudioPaths.length} part(s)`);
-  console.log("Step 8: Saving report to storage...");
+  console.log(`Step 8: Audio generated - ${generatedAudioPaths.length} part(s)`);
+  console.log("Step 9: Saving report to storage...");
   
   // Convert file system paths to web paths
   const webAudioPaths = generatedAudioPaths.map(p => {

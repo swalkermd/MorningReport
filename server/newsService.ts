@@ -102,6 +102,77 @@ export const NEWS_TOPICS = [
  * Fetches news from Brave Search API
  * Primary search source with generous free tier (2,000 queries/month)
  */
+function parseBraveResult(
+  result: any,
+  freshnessHours: number,
+  topicName: string
+): { title: string; summary: string; source: string; url: string; publishedAt: string } | null {
+  const hasTitle = result.title && result.title.length > 10;
+  const hasDescription = result.description && result.description.length > 30;
+  const hasUrl = result.url;
+
+  if (!hasTitle || !hasDescription || !hasUrl) {
+    return null;
+  }
+
+  let publishedAt: string | null = null;
+
+  if (result.age) {
+    const relativeTimeMatch = result.age.match(/^(\d+)\s+(minute|hour|day)s?\s+ago$/i);
+
+    if (relativeTimeMatch) {
+      const amount = parseInt(relativeTimeMatch[1]);
+      const unit = relativeTimeMatch[2].toLowerCase();
+      const now = new Date();
+
+      let millisAgo = 0;
+      if (unit === 'minute') {
+        millisAgo = amount * 60 * 1000;
+      } else if (unit === 'hour') {
+        millisAgo = amount * 60 * 60 * 1000;
+      } else if (unit === 'day') {
+        millisAgo = amount * 24 * 60 * 60 * 1000;
+      }
+
+      if (millisAgo > 0) {
+        const articleDate = new Date(now.getTime() - millisAgo);
+        publishedAt = articleDate.toISOString();
+      }
+    } else {
+      try {
+        const parsed = new Date(result.age);
+        if (!isNaN(parsed.getTime())) {
+          publishedAt = parsed.toISOString();
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+
+  if (!publishedAt) {
+    console.log(`[BraveSearch] Discarded article without parseable timestamp: "${result.title.substring(0, 50)}" (age: ${result.age})`);
+    return null;
+  }
+
+  const publishedDate = new Date(publishedAt);
+  const now = new Date();
+  const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
+
+  if (ageHours > freshnessHours) {
+    console.log(`[BraveSearch] Discarded stale article (${ageHours.toFixed(1)}h old, max ${freshnessHours}h) for ${topicName}: "${result.title.substring(0, 50)}"`);
+    return null;
+  }
+
+  return {
+    title: result.title,
+    summary: result.description,
+    source: new URL(result.url).hostname.replace('www.', ''),
+    url: result.url,
+    publishedAt,
+  };
+}
+
 async function scrapeNewsBraveSearch(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   
@@ -142,81 +213,8 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string; fresh
     
     // Parse and validate articles with timestamps
     const articlesWithTimestamps = data.web.results
-      .filter((result: any) => {
-        const hasTitle = result.title && result.title.length > 10;
-        const hasDescription = result.description && result.description.length > 30;
-        const hasUrl = result.url;
-        return hasTitle && hasDescription && hasUrl;
-      })
-      .map((result: any) => {
-        // Parse timestamp from Brave Search result
-        let publishedAt: string | null = null;
-        
-        if (result.age) {
-          // Try to parse relative time strings from Brave ("14 minutes ago", "2 hours ago", "1 day ago")
-          const relativeTimeMatch = result.age.match(/^(\d+)\s+(minute|hour|day)s?\s+ago$/i);
-          
-          if (relativeTimeMatch) {
-            const amount = parseInt(relativeTimeMatch[1]);
-            const unit = relativeTimeMatch[2].toLowerCase();
-            const now = new Date();
-            
-            let millisAgo = 0;
-            if (unit === 'minute') {
-              millisAgo = amount * 60 * 1000;
-            } else if (unit === 'hour') {
-              millisAgo = amount * 60 * 60 * 1000;
-            } else if (unit === 'day') {
-              millisAgo = amount * 24 * 60 * 60 * 1000;
-            }
-            
-            if (millisAgo > 0) {
-              const articleDate = new Date(now.getTime() - millisAgo);
-              publishedAt = articleDate.toISOString();
-            }
-          } else {
-            // Try parsing as absolute date
-            try {
-              const parsed = new Date(result.age);
-              if (!isNaN(parsed.getTime())) {
-                publishedAt = parsed.toISOString();
-              }
-            } catch {
-              // Could not parse
-            }
-          }
-        }
-        
-        return {
-          title: result.title,
-          summary: result.description,
-          source: new URL(result.url).hostname.replace('www.', ''),
-          url: result.url,
-          publishedAt,
-          rawAge: result.age, // Keep for logging
-        };
-      })
-      .filter((article: any) => {
-        // CRITICAL: Discard articles without parseable timestamps
-        // Do NOT fabricate timestamps - this allows stale content through
-        if (!article.publishedAt) {
-          console.log(`[BraveSearch] Discarded article without parseable timestamp: "${article.title.substring(0, 50)}" (age: ${article.rawAge})`);
-          return false;
-        }
-        
-        // Additionally validate freshness here (belt and suspenders)
-        const publishedDate = new Date(article.publishedAt);
-        const now = new Date();
-        const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
-        
-        if (ageHours > topic.freshness) {
-          console.log(`[BraveSearch] Discarded stale article (${ageHours.toFixed(1)}h old, max ${topic.freshness}h): "${article.title.substring(0, 50)}"`);
-          return false;
-        }
-        
-        return true;
-      })
-      .map(({ rawAge, ...article }: any) => article); // Remove rawAge from final output
+      .map((result: any) => parseBraveResult(result, topic.freshness, topic.name))
+      .filter((article: any): article is { title: string; summary: string; source: string; url: string; publishedAt: string } => Boolean(article));
     
     const validArticles = articlesWithTimestamps.slice(0, 3);
     
@@ -580,101 +578,111 @@ function isDuplicate(article1: any, article2: any): boolean {
   return false;
 }
 
+const MIN_ARTICLES_PER_TOPIC = 2;
+const MAX_ARTICLES_PER_TOPIC = 4;
+const CURRENTS_DAILY_BUDGET = Math.floor(CURRENTS_MONTHLY_LIMIT / 30); // ≈20
+
+function mergeArticles(
+  target: any[],
+  incoming: any[],
+  sourceName: string,
+  contributions: Record<string, number>
+): number {
+  let addedCount = 0;
+
+  for (const article of incoming) {
+    const isDupe = target.some(existing => isDuplicate(existing, article));
+    if (!isDupe) {
+      target.push(article);
+      addedCount++;
+    }
+  }
+
+  if (addedCount > 0) {
+    contributions[sourceName] = (contributions[sourceName] || 0) + addedCount;
+  }
+  return addedCount;
+}
+
 /**
- * Parallel sampling strategy - calls ALL 4 sources and intelligently merges results
- * 
- * Strategy:
- * - Always calls Brave Search + NewsAPI (primary sources)
- * - Calls CurrentsAPI if under budget (minimum 1/day for data sampling)
- * - Calls MediaStack if under daily limit (maximum 3/day)
- * - Merges all results with deduplication
- * - Ensures backup sources get sampled daily for quality assessment
+ * Adaptive sampling strategy - escalates through sources until coverage goals are met
+ * Starts with primary sources and only touches paid/limited APIs when needed
  */
 export async function scrapeNews(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
-  console.log(`\n[Parallel Sampling] Fetching news for: ${topic.name}`);
-  
-  // Check backup source usage
+  console.log(`\n[Smart Sampling] Fetching news for: ${topic.name}`);
+
+  const mergedArticles: any[] = [];
+  const sourceContributions: Record<string, number> = {};
+
   const currentsUsage = await getCurrentsUsageToday();
   const mediastackUsage = await getMediaStackUsageToday();
-  
-  // Determine which sources to call based on rate limits
-  const callCurrents = currentsUsage < 20; // Conservative daily budget (600/month = ~20/day)
-  const callMediaStack = mediastackUsage < MEDIASTACK_DAILY_LIMIT;
-  
-  console.log(`[Parallel Sampling] Rate limits - CurrentsAPI: ${currentsUsage}/20, MediaStack: ${mediastackUsage}/${MEDIASTACK_DAILY_LIMIT}`);
-  
-  // Build list of API calls to make in parallel
-  const apiCalls: Promise<NewsContent>[] = [
-    scrapeNewsBraveSearch(topic),
-    scrapeNewsFromNewsAPI(topic)
-  ];
-  
-  // Add backup sources if within limits
-  if (callCurrents) {
-    apiCalls.push(scrapeNewsCurrentsAPI(topic));
-  }
-  if (callMediaStack) {
-    apiCalls.push(scrapeNewsMediaStack(topic));
-  }
-  
-  // Call ALL sources in parallel for maximum data coverage
-  const results = await Promise.all(apiCalls);
-  
-  // Extract source names for logging
-  const sourceNames = ['Brave', 'NewsAPI'];
-  if (callCurrents) sourceNames.push('Currents');
-  if (callMediaStack) sourceNames.push('MediaStack');
-  
-  // Merge all results with intelligent deduplication
-  const mergedArticles: any[] = [];
-  const sourceContributions: { [key: string]: number } = {};
-  
-  results.forEach((result, idx) => {
-    const sourceName = sourceNames[idx];
-    let addedCount = 0;
-    
-    for (const article of result.articles) {
-      const isDupe = mergedArticles.some(existing => isDuplicate(existing, article));
-      if (!isDupe) {
-        mergedArticles.push(article);
-        addedCount++;
-      }
+
+  const integrateResult = (result: NewsContent, sourceLabel: string) => {
+    if (result.articles.length === 0) {
+      console.log(`[Smart Sampling] ${sourceLabel} returned no usable articles for ${topic.name}`);
+      return;
     }
-    
-    sourceContributions[sourceName] = addedCount;
-  });
-  
-  // Log source contributions
-  const contributionLog = Object.entries(sourceContributions)
-    .map(([source, count]) => `${source}:${count}`)
-    .join(', ');
-  console.log(`[Parallel Sampling] Source contributions - ${contributionLog} → ${mergedArticles.length} unique articles`);
-  
+    const added = mergeArticles(mergedArticles, result.articles, sourceLabel, sourceContributions);
+    console.log(`[Smart Sampling] ${sourceLabel} contributed ${added} new article(s) for ${topic.name}`);
+  };
+
+  // 1. Primary: Brave Search
+  integrateResult(await scrapeNewsBraveSearch(topic), 'Brave');
+
+  // 2. Primary backup: NewsAPI (only if still short on coverage)
+  if (mergedArticles.length < MIN_ARTICLES_PER_TOPIC) {
+    integrateResult(await scrapeNewsFromNewsAPI(topic), 'NewsAPI');
+  } else {
+    console.log(`[Smart Sampling] Skipping NewsAPI for ${topic.name} — already have ${mergedArticles.length} articles from Brave`);
+  }
+
+  // 3. CurrentsAPI only when necessary or to satisfy daily sampling minimum on flagship topic
+  const shouldSampleCurrents =
+    (mergedArticles.length < MIN_ARTICLES_PER_TOPIC && currentsUsage < CURRENTS_DAILY_BUDGET) ||
+    (currentsUsage < CURRENTS_DAILY_MINIMUM && topic.name === 'World News');
+
+  if (shouldSampleCurrents) {
+    integrateResult(await scrapeNewsCurrentsAPI(topic), 'CurrentsAPI');
+  } else {
+    console.log(`[Smart Sampling] Skipping CurrentsAPI for ${topic.name} — usage ${currentsUsage}/${CURRENTS_DAILY_BUDGET}`);
+  }
+
+  // 4. MediaStack as last resort under strict daily limit
+  const shouldCallMediaStack = mergedArticles.length < MIN_ARTICLES_PER_TOPIC && mediastackUsage < MEDIASTACK_DAILY_LIMIT;
+
+  if (shouldCallMediaStack) {
+    integrateResult(await scrapeNewsMediaStack(topic), 'MediaStack');
+  } else if (mergedArticles.length >= MIN_ARTICLES_PER_TOPIC) {
+    console.log(`[Smart Sampling] Skipping MediaStack for ${topic.name} — already satisfied with ${mergedArticles.length} article(s)`);
+  } else {
+    console.log(`[Smart Sampling] Skipping MediaStack for ${topic.name} — usage ${mediastackUsage}/${MEDIASTACK_DAILY_LIMIT}`);
+  }
+
   if (mergedArticles.length === 0) {
-    console.error(`[Parallel Sampling] ✗ ${topic.name} - No articles from any source`);
+    console.error(`[Smart Sampling] ✗ ${topic.name} - No articles from any source`);
     return { topic: topic.name, articles: [] };
   }
-  
-  // Filter out stale articles based on topic's freshness tier
+
   const freshArticles = mergedArticles.filter(article => isArticleFresh(article, topic.freshness));
-  
+
   if (freshArticles.length === 0) {
-    console.warn(`[Parallel Sampling] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered as stale (>${topic.freshness}h)`);
+    console.warn(`[Smart Sampling] ✗ ${topic.name} - All ${mergedArticles.length} articles filtered as stale (>${topic.freshness}h)`);
     return { topic: topic.name, articles: [] };
   }
-  
-  // Sort by recency (most recent first)
+
   const sortedArticles = freshArticles.sort((a, b) => {
     const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
     const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-    return dateB - dateA; // Descending (newest first)
+    return dateB - dateA;
   });
-  
-  // Limit to top 4 articles per topic to maintain quality
-  const topArticles = sortedArticles.slice(0, 4);
-  
-  console.log(`[Parallel Sampling] ✓ ${topic.name} - ${mergedArticles.length} unique → ${freshArticles.length} fresh → top ${topArticles.length} selected`);
-  
+
+  const topArticles = sortedArticles.slice(0, MAX_ARTICLES_PER_TOPIC);
+
+  const contributionLog = Object.entries(sourceContributions)
+    .map(([source, count]) => `${source}:${count}`)
+    .join(', ') || 'none';
+  console.log(`[Smart Sampling] ✓ ${topic.name} - ${mergedArticles.length} unique → ${freshArticles.length} fresh → top ${topArticles.length} selected (${contributionLog})`);
+
   return {
     topic: topic.name,
     articles: topArticles
@@ -700,9 +708,10 @@ const MIN_TOPICS_FOR_CACHE = 5; // Require at least 5 topics for valid cache
  * Only returns cache if it has sufficient coverage (MIN_TOPICS_FOR_CACHE)
  */
 async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | null> {
+  let attemptedFile = getCacheFilePath(date);
   try {
-    let cacheFile = getCacheFilePath(date);
-    
+    let cacheFile = attemptedFile;
+
     // In development mode, if today's cache doesn't exist, use the most recent cache
     if (process.env.NODE_ENV === 'development') {
       try {
@@ -719,6 +728,7 @@ async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | n
           
           if (cacheFiles.length > 0) {
             cacheFile = path.join(CACHE_DIR, cacheFiles[0]);
+            attemptedFile = cacheFile;
             console.log(`[Cache] Using most recent cache: ${cacheFiles[0]}`);
           }
         } catch {
@@ -740,6 +750,7 @@ async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | n
     console.log(`[Cache] ✓ Loaded ${cached.length} topics from cache (${cacheFile})`);
     return cached;
   } catch (error) {
+    console.log(`[Cache] Miss for ${attemptedFile} - fetching fresh data`);
     // Cache doesn't exist or is invalid
     return null;
   }
@@ -842,20 +853,14 @@ async function targetedBraveSearchFallback(topic: { name: string; query: string;
     }
     
     // Parse articles (same logic as regular Brave Search)
+    const targetedFreshnessHours = Math.max(topic.freshness, 24 * 7);
     const articles = data.web.results
-      .filter((result: any) => {
-        const hasTitle = result.title && result.title.length > 10;
-        const hasDescription = result.description && result.description.length > 30;
-        const hasUrl = result.url;
-        return hasTitle && hasDescription && hasUrl;
-      })
+      .map((result: any) => parseBraveResult(result, targetedFreshnessHours, topic.name))
+      .filter((article: ReturnType<typeof parseBraveResult>): article is NonNullable<ReturnType<typeof parseBraveResult>> => Boolean(article))
       .slice(0, 3)
-      .map((result: any) => ({
-        title: result.title,
-        summary: result.description,
-        source: "Brave Search",
-        url: result.url,
-        publishedAt: new Date().toISOString(), // Use current time as fallback
+      .map((article: NonNullable<ReturnType<typeof parseBraveResult>>) => ({
+        ...article,
+        source: article.source || "Brave Search"
       }));
     
     if (articles.length > 0) {
@@ -882,6 +887,8 @@ async function targetedBraveSearchFallback(topic: { name: string; query: string;
  * @param forceRefresh - If true, bypasses cache and fetches fresh data
  * @param underrepresentedTopics - Topics that haven't been covered in last 5 reports (for targeted fallback)
  */
+const MAX_CONCURRENT_TOPICS = 4;
+
 export async function scrapeAllNews(forceRefresh: boolean = false, underrepresentedTopics: string[] = []): Promise<NewsContent[]> {
   // Check cache first unless forced refresh
   if (!forceRefresh) {
@@ -897,20 +904,29 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
   
   console.log(`\n${"=".repeat(60)}\n  STARTING MULTI-SOURCE NEWS AGGREGATION\n${"=".repeat(60)}`);
   
-  // PHASE 1: Initial parallel scrape for all topics
-  for (const topic of NEWS_TOPICS) {
-    try {
-      const content = await scrapeNews(topic);
+  // PHASE 1: Initial scrape in small concurrent batches
+  for (let i = 0; i < NEWS_TOPICS.length; i += MAX_CONCURRENT_TOPICS) {
+    const batch = NEWS_TOPICS.slice(i, i + MAX_CONCURRENT_TOPICS);
+    const batchResults = await Promise.all(batch.map(async (topic) => {
+      try {
+        const content = await scrapeNews(topic);
+        return { topic, content };
+      } catch (error) {
+        console.error(`[Multi-Source] Error scraping news for ${topic.name}:`, error);
+        return { topic, content: { topic: topic.name, articles: [] } };
+      }
+    }));
+
+    for (const { topic, content } of batchResults) {
       if (content.articles.length > 0) {
         results.push(content);
       } else {
         failedTopics.push(topic);
       }
-      // Small delay to respect rate limits across all sources
-      await new Promise(resolve => setTimeout(resolve, 200));
-    } catch (error) {
-      console.error(`[Multi-Source] Error scraping news for ${topic.name}:`, error);
-      failedTopics.push(topic);
+    }
+
+    if (i + MAX_CONCURRENT_TOPICS < NEWS_TOPICS.length) {
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
   }
   
@@ -921,7 +937,7 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
     console.log(`\n[Phase 2] Retrying ${failedTopics.length} failed topics with simplified queries...`);
     await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay before retries
     
-    for (const topic of failedTopics) {
+    for (const topic of [...failedTopics]) {
       try {
         const content = await retryTopicWithFallbackQuery(topic);
         if (content.articles.length > 0) {

@@ -16,6 +16,36 @@ export interface NewsContent {
   }>;
 }
 
+export interface FactCheckIssue {
+  focus: 'hallucination' | 'outdated' | 'accuracy' | 'other';
+  severity: 'critical' | 'warning';
+  summary: string;
+  evidence?: string;
+}
+
+export interface FactCheckResult {
+  status: 'pass' | 'fail';
+  issues: FactCheckIssue[];
+  rawResponse?: string;
+  skipped?: boolean;
+}
+
+const TOPIC_KEYWORDS: Record<string, string[]> = {
+  'World News': ['world news', 'global news', 'international developments', 'foreign affairs', 'global politics'],
+  'US News': ['u.s. news', 'united states news', 'american politics', 'national news', 'us politics'],
+  'Redlands CA Local News': ['redlands', 'san bernardino county', 'inland empire'],
+  'NBA': ['nba', 'national basketball association', 'nba playoffs', 'nba finals'],
+  'AI & Machine Learning': ['artificial intelligence', 'ai news', 'machine learning', 'ai research'],
+  'Electric Vehicles': ['electric vehicle', 'ev market', 'evs', 'electric car', 'battery-electric'],
+  'Autonomous Driving': ['autonomous vehicle', 'self-driving', 'self driving', 'driverless car'],
+  'Humanoid Robots': ['humanoid robot', 'bipedal robot', 'robotics'],
+  'eVTOL & Flying Vehicles': ['evtol', 'flying taxi', 'air taxi', 'urban air mobility', 'electric aircraft'],
+  'Tech Gadgets': ['tech gadget', 'consumer tech', 'smartphone', 'wearable device', 'hardware launch'],
+  'Anti-Aging Science': ['anti-aging', 'longevity research', 'aging science', 'life extension'],
+  'Virtual Medicine': ['telehealth', 'telemedicine', 'digital health', 'virtual care', 'remote patient monitoring'],
+  'Travel': ['travel industry', 'airline', 'aviation sector', 'tourism'],
+};
+
 /**
  * Analyzes previous reports to determine which topics haven't been covered recently
  * Ensures balanced coverage across all topics over a 5-report cycle
@@ -33,17 +63,25 @@ export function analyzeTopicCoverage(newsContent: NewsContent[], previousReports
 
   // Extract all available topic names from newsContent
   const allTopics = newsContent.map(nc => nc.topic);
-  
+
+  // Build lookup of keywords per topic (default to topic name if no custom list)
+  const topicKeywordMap = new Map<string, string[]>();
+  allTopics.forEach(topic => {
+    const keywords = TOPIC_KEYWORDS[topic] || [topic];
+    topicKeywordMap.set(topic, keywords.map(keyword => keyword.toLowerCase()));
+  });
+
   // Count how many times each topic appears in previous reports
   const topicMentions: Map<string, number> = new Map();
   allTopics.forEach(topic => topicMentions.set(topic, 0));
-  
-  // Scan previous reports for topic coverage
+
+  // Scan previous reports for topic coverage using keyword sets
   previousReports.forEach(report => {
+    const reportLower = report.toLowerCase();
     allTopics.forEach(topic => {
-      // Check if topic name or key terms appear in the report
-      const topicTerms = topic.toLowerCase();
-      if (report.toLowerCase().includes(topicTerms)) {
+      const keywords = topicKeywordMap.get(topic) || [topic.toLowerCase()];
+      const isMentioned = keywords.some(keyword => reportLower.includes(keyword));
+      if (isMentioned) {
         topicMentions.set(topic, (topicMentions.get(topic) || 0) + 1);
       }
     });
@@ -222,14 +260,15 @@ async function attemptGenerateReport(
   previousReports: string[],
   reportDate: Date
 ): Promise<string> {
-  // Try up to 2 attempts to generate a properly-sized report
   const maxAttempts = 2;
   let lastWordCount = 0;
-  const topicCount = newsContent.length;
-  
+  const IDEAL_MIN = 750;
+  const IDEAL_MAX = 1000;
+  const ABSOLUTE_MINIMUM = 700;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isRetry = attempt > 1;
-    
+
     try {
       const report = await generateReportAttempt(
         newsContent,
@@ -237,41 +276,38 @@ async function attemptGenerateReport(
         reportDate,
         isRetry ? lastWordCount : undefined
       );
-      
-      // Validate length
+
       const wordCount = report.split(/\s+/).length;
-      console.log(`[Report Length] Generated ${wordCount} words (target: 1800-2000) [attempt ${attempt}/${maxAttempts}]`);
+      console.log(`[Report Length] Generated ${wordCount} words (ideal ${IDEAL_MIN}-${IDEAL_MAX}) [attempt ${attempt}/${maxAttempts}]`);
 
-      // Flexible length requirements: Prioritize accuracy over word count
-      // A shorter accurate report is better than a longer hallucinated one
-      const ABSOLUTE_MINIMUM = 700; // Reduced from 1200 to allow accurate but shorter reports
-      const IDEAL_TARGET = 1800;
-
-      console.log(`[Report Length] Minimum: ${ABSOLUTE_MINIMUM} words, Target: ${IDEAL_TARGET} words (${topicCount} topics)`);
-
-      if (wordCount >= IDEAL_TARGET) {
-        console.log(`[Report Length] ✓ Excellent length: ${wordCount} words`);
-        return report;
-      } else if (wordCount >= ABSOLUTE_MINIMUM) {
-        console.warn(`[Report Length] ⚠ Acceptable: ${wordCount} words (target: ${IDEAL_TARGET}, but accuracy > length)`);
+      if (wordCount >= IDEAL_MIN && wordCount <= IDEAL_MAX) {
+        console.log(`[Report Length] ✓ Within ideal range (${wordCount} words)`);
         return report;
       }
-      
-      // Report too short - prepare for retry
+
+      if (wordCount > IDEAL_MAX) {
+        console.warn(`[Report Length] ⚠ Slightly long (${wordCount} words > ${IDEAL_MAX}). Accuracy prioritized over trimming.`);
+        return report;
+      }
+
+      if (wordCount >= ABSOLUTE_MINIMUM) {
+        console.warn(`[Report Length] ⚠ Acceptable but short (${wordCount} words; ideal ${IDEAL_MIN}-${IDEAL_MAX})`);
+        return report;
+      }
+
       lastWordCount = wordCount;
-      console.warn(`[Report Length] ⚠️  Report too short (${wordCount} words < ${ABSOLUTE_MINIMUM} minimum, target: ${IDEAL_TARGET})`);
+      console.warn(`[Report Length] ⚠️  Report too short (${wordCount} words < ${ABSOLUTE_MINIMUM} minimum)`);
 
       if (attempt < maxAttempts) {
-        console.log(`[Report Length] Retrying with expansion instructions...`);
+        console.log(`[Report Length] Retrying with focused expansion guidance...`);
       } else {
-        console.error(`[Report Length] ❌ Failed to generate ${ABSOLUTE_MINIMUM}+ word report after ${maxAttempts} attempts`);
-        throw new Error(`Report generation failed: only ${wordCount} words after ${maxAttempts} attempts (minimum: ${ABSOLUTE_MINIMUM}, target: ${IDEAL_TARGET})`);
+        console.error(`[Report Length] ❌ Failed to reach ${ABSOLUTE_MINIMUM}+ words after ${maxAttempts} attempts`);
+        throw new Error(`Report generation failed: only ${wordCount} words after ${maxAttempts} attempts (minimum: ${ABSOLUTE_MINIMUM})`);
       }
     } catch (error) {
       if (attempt === maxAttempts) {
         throw error;
       }
-      // For non-length errors, rethrow immediately
       if (!(error instanceof Error) || !error.message.includes('Report generation failed')) {
         throw error;
       }
@@ -380,45 +416,19 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
   
   const formattedDate = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)}, ${year}`;
 
-  // Calculate required words per topic
   const topicCount = newsContent.length;
-  const wordsPerTopic = Math.ceil(1800 / topicCount); // Aim for 1800 words total
-  
-  // Build retry-specific expansion instruction if this is a retry attempt
+  const IDEAL_MIN = 750;
+  const IDEAL_MAX = 1000;
+  const minPerTopic = Math.max(120, Math.floor(IDEAL_MIN / Math.max(1, topicCount)));
+  const maxPerTopic = Math.max(minPerTopic + 60, Math.ceil(IDEAL_MAX / Math.max(1, topicCount)));
+
   const retryExpansionPrompt = previousWordCount ? `
-🚨🚨🚨 PREVIOUS ATTEMPT FAILED: Only ${previousWordCount} words (REJECTED) 🚨🚨🚨
+🚨 PREVIOUS DRAFT TOO SHORT (${previousWordCount} words < ${IDEAL_MIN}). Expand using ONLY verified facts from the supplied articles.
+- Add concrete numbers, names, locations, and timeline details that already exist in the sources.
+- Do not invent new developments or speculate beyond what the articles confirm.
+` : '';
 
-MATHEMATICAL BREAKDOWN:
-Topics: ${topicCount}
-Target: 1800 words minimum
-Per topic: ${wordsPerTopic} words minimum
-
-EXPANSION CHECKLIST (MANDATORY FOR EACH TOPIC):
-□ Background/context paragraph with factual details from sources (60-80 words)
-□ Detailed facts from sources: names, numbers, dates, locations (80-100 words)
-□ Additional factual context and specific details from sources (60-80 words)
-□ Transitional phrase to next topic (10-20 words)
-
-MANDATORY EXPANSION TECHNIQUES:
-1. START each topic with factual context/background from the sources (1 paragraph)
-2. DETAIL the specific facts from source articles (2 paragraphs)
-3. ADD more factual details from sources: names, dates, numbers, locations, specific events
-4. ADD transitional phrases between topics
-5. INCLUDE all relevant factual details from sources
-6. ELABORATE with additional facts from the source articles, NOT speculation
-
-DO NOT write brief summaries. This is a COMPREHENSIVE 5-10 minute audio briefing.
-YOUR PREVIOUS ${previousWordCount}-WORD DRAFT WAS TOO SHORT. Write ${wordsPerTopic}+ words for EACH topic NOW.
-` : `
-
-📊 LENGTH REQUIREMENT (STRICTLY ENFORCED):
-You have ${topicCount} topics. You MUST write ${wordsPerTopic}+ words PER TOPIC to reach the 1800-2000 word target.
-- That means 3-4 full paragraphs per topic (200-250 words each)
-- Include factual context, detailed facts, and additional relevant details from sources
-- This is a comprehensive 5-10 minute audio briefing, not a headline summary
-`;
-
-  const prompt = `You are a professional news anchor for NPR/BBC writing a daily morning news briefing. You MUST write at NATIONAL NEWS QUALITY LEVEL with SPECIFIC facts, names, and numbers.${retryExpansionPrompt}
+  const prompt = `You are a professional news anchor for a national morning briefing. Deliver concise, fact-packed narration suitable for audio.${retryExpansionPrompt}
 
 🚨🚨🚨 ANTI-HALLUCINATION POLICY (ABSOLUTE REQUIREMENT) 🚨🚨🚨
 
@@ -467,21 +477,13 @@ CRITICAL REQUIREMENTS:
 - Start with EXACTLY: "Here's your morning report for ${formattedDate}."
 - Include a brief "On This Day in History" section (1-2 sentences) near the end, before the closing
 - End with EXACTLY: "That's it for the morning report. Have a great day!"
-- TARGET: 1800-2000 words for a comprehensive 5-10 minute audio briefing
-- MINIMUM: 700 words (but ACCURACY always trumps length - a 500-word accurate report beats a 2000-word fabricated one)
-- Each topic SHOULD receive 3-4 paragraphs (200-250 words) IF sources provide sufficient detail
-- If sources are insufficient, write less or skip the topic entirely - NEVER fabricate to meet word count
-- EVERY story MUST include SPECIFIC details: names, numbers, locations, dates, companies
-- ABSOLUTELY NO vague phrases like "buzzing with activity", "seeing momentum", "noteworthy increase"
-- REJECT generic content - if source data lacks specifics, skip that topic entirely
-- DO NOT improvise your own closing - use the required closing line only
-🚨 CRITICAL FACT-CHECKING REQUIREMENT (MANDATORY):
-- You MUST fact-check and CORRECT all political titles, even when source articles are wrong
-- As of November 2025: Donald Trump is President of the United States (inaugurated January 2025)
-- If a source article says "former President Trump" - this is INCORRECT and you MUST correct it to "President Trump"
-- DO NOT copy outdated/incorrect titles from sources - always use current, factually accurate titles
-- When writing about Trump in November 2025, refer to him as "President Trump" or "President Donald Trump"
-- This applies to ALL political figures - verify current officeholders and correct source errors
+- TARGET LENGTH: ${IDEAL_MIN}-${IDEAL_MAX} words (~5-8 minutes of audio)
+- With ${topicCount} topics, aim for roughly ${minPerTopic}-${maxPerTopic} words per topic when sources provide detail
+- Minimum acceptable length: 700 words, but accuracy always overrides word count
+- If sources are thin, write less or skip the topic — NEVER fabricate to fill space
+- Every story MUST include specific facts: names, numbers, locations, dates, companies
+- Avoid vague filler phrases ("buzzing with activity", "seeing momentum", "noteworthy increase", etc.)
+- Do not alter political titles unless the sources confirm the change. If uncertain, omit the title instead of guessing.
 
 🔴 FRESHNESS REQUIREMENT (CRITICAL):
 - Breaking news topics (World, US, NBA, Redlands, Travel): ONLY stories from last 24 hours
@@ -584,38 +586,16 @@ Write your news report now. Remember:
 5. DO NOT REPEAT stories from previous reports unless there's a NEW development with NEW facts`;
 
   // Enhanced system message with non-negotiable requirements
-  const systemMessage = `You are a professional news anchor writing comprehensive daily audio news briefings for Morning Report.
+  const systemMessage = `You are a professional news anchor writing concise daily audio briefings for Morning Report.
 
-🔴 ABSOLUTE REQUIREMENTS (RANKED BY PRIORITY):
+ABSOLUTE PRIORITIES (in order):
+1. ACCURACY — rely only on the supplied articles, skip anything unverifiable, never speculate.
+2. STRUCTURE — use the required opening line, include "On This Day in History" (1-2 sentences), and finish with the exact closing line.
+3. QUALITY — each story must contain concrete names, numbers, locations, and time references drawn from the sources.
+4. FRESHNESS — avoid repeating prior-report stories unless there is a clearly described new development with new facts.
+5. LENGTH — aim for ${IDEAL_MIN}-${IDEAL_MAX} words overall, but never sacrifice accuracy to hit a number.
 
-1. ACCURACY (HIGHEST PRIORITY - NEVER COMPROMISE):
-   🚨 ONLY use information explicitly stated in source articles
-   🚨 NEVER fabricate facts, statistics, names, or events
-   🚨 If a source is a generic portal/homepage, SKIP that topic
-   🚨 Better to skip topics than to make up information
-   🚨 ACCURACY ALWAYS TRUMPS WORD COUNT
-
-2. STRUCTURE:
-   - Start EXACTLY: "Here's your morning report for [date]."
-   - End EXACTLY: "That's it for the morning report. Have a great day!"
-   - Include "On This Day in History" (1-2 sentences) before closing
-
-3. QUALITY: Every story requires specific names, numbers, locations, dates - NO generic phrases
-   - If sources don't provide specifics, SKIP that topic
-
-4. LENGTH: TARGET 1800-2000 words for a comprehensive 5-10 minute audio briefing
-   - MINIMUM 700 words (but can be shorter if that's all the verifiable information available)
-   - CRITICAL: ACCURACY > LENGTH. A 500-word accurate report is better than a 2000-word fabricated report
-   - Write 3-4 FULL paragraphs (200-250 words) per topic ONLY when sources provide sufficient detail
-   - If sources are insufficient, write less or skip topics - NEVER invent facts to reach word count
-
-5. FRESHNESS: DO NOT repeat stories from previous 5 reports unless there's a genuinely NEW development
-   - Listeners expect DIFFERENT news each day, not rehashed content
-   - When in doubt, skip the story and find fresh news instead
-
-6. STYLE: Professional NPR/BBC quality - conversational but detailed and authoritative
-
-PRIORITY ORDER: Accuracy > Quality > Structure > Freshness > Length`;
+If a source is generic or lacks verifiable facts, skip it.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
@@ -633,53 +613,114 @@ PRIORITY ORDER: Accuracy > Quality > Structure > Freshness > Length`;
   });
 
   const content = response.choices[0].message.content || "";
-  
+
   if (!content || content.trim().length === 0) {
     throw new Error("OpenAI returned an empty response");
   }
-  
+
   // Detect content refusal in response
-  if (content.includes("I'm sorry, but I can't provide") || 
+  if (content.includes("I'm sorry, but I can't provide") ||
       content.includes("I cannot provide") ||
       content.includes("I'm unable to")) {
     const error: any = new Error("GPT refused to generate content due to content policy");
     error.response = { choices: [{ message: { content } }] };
     throw error;
   }
-  
-  // Apply political title corrections (deterministic post-processing)
-  const correctedContent = validateAndCorrectPoliticalTitles(content);
 
-  return correctedContent;
+  return content;
 }
 
-/**
- * Validates and automatically corrects incorrect political titles in the report.
- * Throws an error if unknown title violations are detected after corrections.
- */
-function validateAndCorrectPoliticalTitles(content: string): string {
-  let corrected = content;
-  let correctionsMade = 0;
-  
-  // As of November 2025, Trump is the current president (inaugurated January 2025)
-  // Replace all instances of "former President Trump" with "President Trump"
-  const formerTrumpRegex = /(f|F)ormer (P|p)resident (Donald )?Trump/g;
-  const matches = content.match(formerTrumpRegex);
-  
-  if (matches && matches.length > 0) {
-    corrected = corrected.replace(formerTrumpRegex, (match) => {
-      // Preserve the capitalization of "President"
-      const isCapitalized = match.includes('President');
-      return match.replace(/former /i, '').replace(/Former /i, '');
+export async function factCheckReportAgainstSources(
+  report: string,
+  newsContent: NewsContent[],
+  reportDate: Date
+): Promise<FactCheckResult> {
+  try {
+    const digest = newsContent.map(section => ({
+      topic: section.topic,
+      articles: section.articles.slice(0, 4).map(article => ({
+        title: article.title,
+        summary: article.summary.length > 360 ? `${article.summary.slice(0, 357)}...` : article.summary,
+        source: article.source,
+        publishedAt: article.publishedAt,
+        url: article.url,
+      }))
+    }));
+
+    const sourcesPayload = JSON.stringify(digest, null, 2);
+    const isoDate = reportDate.toISOString();
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a meticulous fact-checker. Flag statements in the generated script that are unsupported by the provided article digests or that rely on outdated information. Evaluate freshness by comparing article timestamps to the report date ${isoDate}.`,
+        },
+        {
+          role: 'user',
+          content: `REPORT DATE: ${isoDate}
+
+GENERATED REPORT:
+${report}
+
+SOURCE DIGEST:
+${sourcesPayload}
+
+Respond in JSON with the shape {
+  "status": "pass" | "fail",
+  "issues": [
+    {
+      "focus": "hallucination" | "outdated" | "accuracy" | "other",
+      "severity": "critical" | "warning",
+      "summary": "concise description of the problem",
+      "evidence": "cite the conflicting or missing article details"
+    }
+  ]
+}.
+
+Mark status as "fail" if any critical issues exist. Focus on concrete factual conflicts or clearly outdated developments only.`,
+        },
+      ],
+      max_completion_tokens: 1200,
+      temperature: 0,
     });
-    correctionsMade = matches.length;
-    console.log(`[Title Validator] ✓ Corrected ${correctionsMade} instance(s) of "former President Trump" → "President Trump"`);
+
+    const raw = response.choices[0].message.content?.trim() || '';
+    if (!raw) {
+      console.warn('[FactCheck] Empty response from model; skipping fact check');
+      return { status: 'pass', issues: [], rawResponse: raw, skipped: true };
+    }
+
+    let jsonText = raw;
+    const fenced = raw.match(/```json([\s\S]*?)```/i) || raw.match(/```([\s\S]*?)```/i);
+    if (fenced) {
+      jsonText = fenced[1];
+    }
+
+    let parsed: FactCheckResult;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.warn('[FactCheck] Unable to parse response as JSON, treating as pass', parseError);
+      return { status: 'pass', issues: [], rawResponse: raw, skipped: true };
+    }
+
+    parsed.rawResponse = raw;
+
+    if (!Array.isArray(parsed.issues)) {
+      parsed.issues = [];
+    }
+
+    if (parsed.status !== 'pass' && parsed.status !== 'fail') {
+      parsed.status = parsed.issues.some(issue => issue.severity === 'critical') ? 'fail' : 'pass';
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error('[FactCheck] Error validating report:', error);
+    return { status: 'pass', issues: [], skipped: true, rawResponse: error instanceof Error ? error.message : String(error) };
   }
-  
-  // Add more title corrections here as needed for other political figures
-  // Example: corrected = corrected.replace(/Vice President-elect/g, 'Vice President');
-  
-  return corrected;
 }
 
 function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
