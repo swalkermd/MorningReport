@@ -5,10 +5,12 @@ import * as schema from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
+// Allow running without DB if not strictly required (e.g. using FileStorage)
+// We provide a dummy URL to satisfy Drizzle's initialization, but DB operations will fail if used.
+const url = process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy";
+
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  console.warn("Warning: DATABASE_URL is not set. Database features will not work.");
 }
 
-export const db = drizzle(process.env.DATABASE_URL, { schema });
+export const db = drizzle(url, { schema });

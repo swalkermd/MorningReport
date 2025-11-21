@@ -2,6 +2,7 @@ import { NewsContent } from "./openai";
 import OpenAI from "openai";
 import { promises as fs } from "fs";
 import path from "path";
+import Parser from "rss-parser";
 
 // API usage tracking system for backup sources
 const USAGE_TRACKING_DIR = path.join(process.cwd(), 'data');
@@ -23,7 +24,7 @@ async function getApiUsageToday(usageFile: string): Promise<number> {
     const data = await fs.readFile(usageFile, 'utf-8');
     const usage: ApiUsage = JSON.parse(data);
     const today = new Date().toISOString().split('T')[0];
-    
+
     if (usage.date === today) {
       return usage.count;
     }
@@ -36,16 +37,16 @@ async function getApiUsageToday(usageFile: string): Promise<number> {
 async function incrementApiUsage(usageFile: string, apiName: string, dailyLimit?: number): Promise<void> {
   const today = new Date().toISOString().split('T')[0];
   const currentCount = await getApiUsageToday(usageFile);
-  
+
   const usage: ApiUsage = {
     date: today,
     count: currentCount + 1
   };
-  
+
   try {
     await fs.mkdir(path.dirname(usageFile), { recursive: true });
     await fs.writeFile(usageFile, JSON.stringify(usage, null, 2));
-    
+
     if (dailyLimit) {
       console.log(`[${apiName}] Usage: ${usage.count}/${dailyLimit} calls today`);
     } else {
@@ -175,64 +176,75 @@ function parseBraveResult(
 
 async function scrapeNewsBraveSearch(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.BRAVE_SEARCH_API_KEY;
-  
+
   if (!apiKey) {
     console.error(`[BraveSearch] API key not configured - skipping ${topic.name}`);
     return { topic: topic.name, articles: [] };
   }
-  
-  try {
-    const response = await fetch(
-      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(topic.query)}&count=5&freshness=pd`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          'X-Subscription-Token': apiKey,
-        },
-        signal: AbortSignal.timeout(10000)
+
+  let retries = 0;
+  const maxRetries = 3;
+  const baseDelay = 2000;
+
+  while (retries <= maxRetries) {
+    try {
+      const response = await fetch(
+        `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(topic.query)}&count=5&freshness=pd`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'X-Subscription-Token': apiKey,
+          },
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+
+      if (response.status === 429) {
+        const delay = baseDelay * Math.pow(2, retries);
+        console.warn(`[BraveSearch] Rate limit hit for ${topic.name}. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries++;
+        continue;
       }
-    );
-    
-    if (response.status === 429) {
-      console.warn(`[BraveSearch] Rate limit hit for ${topic.name}`);
+
+      if (!response.ok) {
+        console.error(`[BraveSearch] API error for ${topic.name}: ${response.status} ${response.statusText}`);
+        return { topic: topic.name, articles: [] };
+      }
+
+      const data = await response.json();
+
+      if (!data.web?.results || data.web.results.length === 0) {
+        console.warn(`[BraveSearch] No results found for ${topic.name}`);
+        return { topic: topic.name, articles: [] };
+      }
+
+      // Parse and filter articles
+      const articlesWithTimestamps = data.web.results
+        .map((result: any) => parseBraveResult(result, topic.freshness, topic.name))
+        .filter((article: ReturnType<typeof parseBraveResult>): article is NonNullable<ReturnType<typeof parseBraveResult>> => Boolean(article));
+
+      const validArticles = articlesWithTimestamps.slice(0, 3);
+
+      if (validArticles.length === 0) {
+        console.warn(`[BraveSearch] No valid results after filtering for ${topic.name}`);
+        return { topic: topic.name, articles: [] };
+      }
+
+      console.log(`[BraveSearch] Successfully fetched ${validArticles.length} results for ${topic.name}`);
+      return {
+        topic: topic.name,
+        articles: validArticles,
+      };
+
+    } catch (error) {
+      console.error(`[BraveSearch] Error fetching ${topic.name}:`, error);
       return { topic: topic.name, articles: [] };
     }
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error(`[BraveSearch] Error for ${topic.name}:`, errorData);
-      return { topic: topic.name, articles: [] };
-    }
-    
-    const data = await response.json();
-    
-    if (!data.web?.results || data.web.results.length === 0) {
-      console.warn(`[BraveSearch] No results found for ${topic.name}`);
-      return { topic: topic.name, articles: [] };
-    }
-    
-    // Parse and validate articles with timestamps
-    const articlesWithTimestamps = data.web.results
-      .map((result: any) => parseBraveResult(result, topic.freshness, topic.name))
-      .filter((article: any): article is { title: string; summary: string; source: string; url: string; publishedAt: string } => Boolean(article));
-    
-    const validArticles = articlesWithTimestamps.slice(0, 3);
-    
-    if (validArticles.length === 0) {
-      console.warn(`[BraveSearch] No valid results after filtering for ${topic.name}`);
-      return { topic: topic.name, articles: [] };
-    }
-    
-    console.log(`[BraveSearch] Successfully fetched ${validArticles.length} results for ${topic.name}`);
-    return {
-      topic: topic.name,
-      articles: validArticles,
-    };
-    
-  } catch (error) {
-    console.error(`[BraveSearch] Error fetching ${topic.name}:`, error);
-    return { topic: topic.name, articles: [] };
   }
+
+  console.error(`[BraveSearch] Failed to fetch ${topic.name} after ${maxRetries} retries due to rate limiting.`);
+  return { topic: topic.name, articles: [] };
 }
 
 /**
@@ -242,19 +254,19 @@ async function scrapeNewsBraveSearch(topic: { name: string; query: string; fresh
  */
 async function scrapeNewsMediaStack(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.MEDIASTACK_API_KEY;
-  
+
   if (!apiKey) {
     console.error(`[MediaStack] API key not configured - skipping ${topic.name}`);
     return { topic: topic.name, articles: [] };
   }
-  
+
   // Check daily usage limit
   const usageToday = await getMediaStackUsageToday();
   if (usageToday >= MEDIASTACK_DAILY_LIMIT) {
     console.warn(`[MediaStack] Daily limit reached (${usageToday}/${MEDIASTACK_DAILY_LIMIT}) - skipping ${topic.name}`);
     return { topic: topic.name, articles: [] };
   }
-  
+
   try {
     // MediaStack uses keywords parameter and date filtering
     // Free tier only supports HTTP (not HTTPS)
@@ -262,28 +274,28 @@ async function scrapeNewsMediaStack(topic: { name: string; query: string; freshn
       `http://api.mediastack.com/v1/news?access_key=${apiKey}&keywords=${encodeURIComponent(topic.query)}&languages=en&limit=5&sort=published_desc`,
       { signal: AbortSignal.timeout(10000) }
     );
-    
+
     // Increment usage counter after successful API call
     await incrementMediaStackUsage();
-    
+
     if (response.status === 429) {
       console.warn(`[MediaStack] Rate limit hit for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error(`[MediaStack] Error for ${topic.name}:`, errorData);
       return { topic: topic.name, articles: [] };
     }
-    
+
     const data = await response.json();
-    
+
     if (!data.data || data.data.length === 0) {
       console.warn(`[MediaStack] No articles found for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     // Filter and validate articles
     const validArticles = data.data
       .filter((article: any) => {
@@ -301,18 +313,18 @@ async function scrapeNewsMediaStack(topic: { name: string; query: string; freshn
       }))
       .filter((article: any) => isArticleFresh(article, topic.freshness))
       .slice(0, 3);
-    
+
     if (validArticles.length === 0) {
       console.warn(`[MediaStack] No valid articles after filtering for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     console.log(`[MediaStack] Successfully fetched ${validArticles.length} articles for ${topic.name}`);
     return {
       topic: topic.name,
       articles: validArticles,
     };
-    
+
   } catch (error) {
     if (error instanceof Error && error.name === 'TimeoutError') {
       console.error(`[MediaStack] Timeout fetching ${topic.name}`);
@@ -328,44 +340,44 @@ async function scrapeNewsMediaStack(topic: { name: string; query: string; freshn
  */
 async function scrapeNewsCurrentsAPI(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.CURRENTS_API_KEY;
-  
+
   if (!apiKey) {
     console.error(`[CurrentsAPI] API key not configured - skipping ${topic.name}`);
     return { topic: topic.name, articles: [] };
   }
-  
+
   // Calculate freshness window based on topic tier (RFC 3339 format for CurrentsAPI)
   const now = new Date();
   const startTime = new Date(now.getTime() - topic.freshness * 60 * 60 * 1000);
   const startDate = startTime.toISOString(); // RFC 3339 format: 2025-11-09T06:00:00.000Z
-  
+
   try {
     const response = await fetch(
       `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(topic.query)}&start_date=${startDate}&language=en&apiKey=${apiKey}`,
       { signal: AbortSignal.timeout(30000) }
     );
-    
+
     // Increment usage counter after successful API call
     await incrementCurrentsUsage();
-    
+
     if (response.status === 429) {
       console.warn(`[CurrentsAPI] Rate limit hit for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error(`[CurrentsAPI] Error for ${topic.name}:`, errorData);
       return { topic: topic.name, articles: [] };
     }
-    
+
     const data = await response.json();
-    
+
     if (!data.news || data.news.length === 0) {
       console.warn(`[CurrentsAPI] No articles found for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     const validArticles = data.news
       .filter((article: any) => {
         const hasTitle = article.title && article.title.length > 10;
@@ -380,18 +392,18 @@ async function scrapeNewsCurrentsAPI(topic: { name: string; query: string; fresh
         url: article.url,
         publishedAt: article.published,
       }));
-    
+
     if (validArticles.length === 0) {
       console.warn(`[CurrentsAPI] No valid articles after filtering for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     console.log(`[CurrentsAPI] Successfully fetched ${validArticles.length} articles for ${topic.name}`);
     return {
       topic: topic.name,
       articles: validArticles,
     };
-    
+
   } catch (error) {
     console.error(`[CurrentsAPI] Error fetching ${topic.name}:`, error);
     return { topic: topic.name, articles: [] };
@@ -415,20 +427,20 @@ async function scrapeNewsOpenAI(topic: { name: string; query: string }): Promise
  */
 export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string; freshness: number }): Promise<NewsContent> {
   const apiKey = process.env.NEWSAPI_KEY;
-  
+
   if (!apiKey) {
     console.error(`[NewsAPI] API key not configured - skipping ${topic.name}`);
     return { topic: topic.name, articles: [] };
   }
-  
+
   // Calculate freshness window based on topic tier (ISO format for NewsAPI)
   const now = new Date();
   const startTime = new Date(now.getTime() - topic.freshness * 60 * 60 * 1000);
   const fromDate = startTime.toISOString();
-  
+
   const maxRetries = 2;
   let lastError: Error | null = null;
-  
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 0) {
@@ -436,40 +448,40 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
         console.log(`[NewsAPI] Retry ${attempt}/${maxRetries} for ${topic.name} after ${backoffMs}ms`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
-      
+
       const response = await fetch(
         `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic.query)}&from=${fromDate}&sortBy=publishedAt&language=en&pageSize=5&apiKey=${apiKey}`,
         { signal: AbortSignal.timeout(10000) }
       );
-      
+
       // Handle rate limiting
       if (response.status === 429) {
         console.warn(`[NewsAPI] Rate limit hit for ${topic.name}`);
         lastError = new Error('Rate limit exceeded');
         continue;
       }
-      
+
       // Handle server errors with retry
       if (response.status >= 500) {
         console.warn(`[NewsAPI] Server error ${response.status} for ${topic.name}`);
         lastError = new Error(`Server error: ${response.status}`);
         continue;
       }
-      
+
       // Handle client errors (don't retry)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error(`[NewsAPI] Error for ${topic.name}:`, errorData);
         return { topic: topic.name, articles: [] };
       }
-      
+
       const data = await response.json();
-      
+
       if (!data.articles || data.articles.length === 0) {
         console.warn(`[NewsAPI] No articles found for ${topic.name}`);
         return { topic: topic.name, articles: [] };
       }
-      
+
       // Filter out articles with insufficient detail
       const validArticles = data.articles
         .filter((article: any) => {
@@ -486,18 +498,18 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
           url: article.url,
           publishedAt: article.publishedAt,
         }));
-      
+
       if (validArticles.length === 0) {
         console.warn(`[NewsAPI] No valid articles after filtering for ${topic.name}`);
         return { topic: topic.name, articles: [] };
       }
-      
+
       console.log(`[NewsAPI] Successfully fetched ${validArticles.length} articles for ${topic.name}`);
       return {
         topic: topic.name,
         articles: validArticles,
       };
-      
+
     } catch (error) {
       lastError = error as Error;
       if (error instanceof Error && error.name === 'TimeoutError') {
@@ -507,10 +519,47 @@ export async function scrapeNewsFromNewsAPI(topic: { name: string; query: string
       }
     }
   }
-  
+
   // All retries exhausted
   console.error(`[NewsAPI] Failed to fetch ${topic.name} after ${maxRetries} retries:`, lastError);
   return { topic: topic.name, articles: [] };
+}
+
+/**
+ * Scrape NBA news from ESPN RSS feed
+ */
+async function scrapeNewsNBA(topic: { name: string; freshness: number }): Promise<NewsContent> {
+  console.log(`[ESPN RSS] Fetching NBA news...`);
+  const parser = new Parser();
+  try {
+    const feed = await parser.parseURL('https://www.espn.com/espn/rss/nba/news');
+
+    if (!feed.items || feed.items.length === 0) {
+      console.warn(`[ESPN RSS] No items found in feed`);
+      return { topic: topic.name, articles: [] };
+    }
+
+    const articles = feed.items.map(item => {
+      return {
+        title: item.title || 'Untitled',
+        summary: item.contentSnippet || item.content || '',
+        url: item.link || '',
+        source: 'ESPN',
+        publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+        // RSS items might not have images, but that's okay
+      };
+    });
+
+    console.log(`[ESPN RSS] Found ${articles.length} articles`);
+    return {
+      topic: topic.name,
+      articles: articles
+    };
+
+  } catch (error) {
+    console.error(`[ESPN RSS] Error fetching feed:`, error);
+    return { topic: topic.name, articles: [] };
+  }
 }
 
 /**
@@ -522,18 +571,18 @@ function isArticleFresh(article: any, maxAgeHours: number = 24): boolean {
     console.warn(`[Freshness] Article missing publishedAt timestamp: ${article.title?.substring(0, 50)}`);
     return false; // Reject articles without timestamps
   }
-  
+
   try {
     const publishedDate = new Date(article.publishedAt);
     const now = new Date();
     const ageHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
-    
+
     // Reject articles older than max age
     if (ageHours > maxAgeHours) {
       console.log(`[Freshness] Rejected stale article (${ageHours.toFixed(1)}h old, max ${maxAgeHours}h): ${article.title?.substring(0, 60)}`);
       return false;
     }
-    
+
     return true;
   } catch (error) {
     console.warn(`[Freshness] Failed to parse publishedAt for article: ${article.title?.substring(0, 50)}`);
@@ -556,16 +605,16 @@ function isDuplicate(article1: any, article2: any): boolean {
   if (article1.url && article2.url && article1.url === article2.url) {
     return true;
   }
-  
+
   // Check title similarity (handle minor variations)
   const title1 = normalizeTitle(article1.title);
   const title2 = normalizeTitle(article2.title);
-  
+
   // Exact match
   if (title1 === title2) {
     return true;
   }
-  
+
   // Check if one title contains the other (handles truncated headlines)
   if (title1.length > 20 && title2.length > 20) {
     const shorter = title1.length < title2.length ? title1 : title2;
@@ -574,12 +623,12 @@ function isDuplicate(article1: any, article2: any): boolean {
       return true;
     }
   }
-  
+
   return false;
 }
 
-const MIN_ARTICLES_PER_TOPIC = 2;
-const MAX_ARTICLES_PER_TOPIC = 4;
+const MIN_ARTICLES_PER_TOPIC = 3;
+const MAX_ARTICLES_PER_TOPIC = 6;
 const CURRENTS_DAILY_BUDGET = Math.floor(CURRENTS_MONTHLY_LIMIT / 30); // ≈20
 
 function mergeArticles(
@@ -625,6 +674,11 @@ export async function scrapeNews(topic: { name: string; query: string; freshness
     const added = mergeArticles(mergedArticles, result.articles, sourceLabel, sourceContributions);
     console.log(`[Smart Sampling] ${sourceLabel} contributed ${added} new article(s) for ${topic.name}`);
   };
+
+  // 0. Special Source: ESPN RSS for NBA
+  if (topic.name === "NBA") {
+    integrateResult(await scrapeNewsNBA(topic), 'ESPN RSS');
+  }
 
   // 1. Primary: Brave Search
   integrateResult(await scrapeNewsBraveSearch(topic), 'Brave');
@@ -703,50 +757,23 @@ const MIN_TOPICS_FOR_CACHE = 5; // Require at least 5 topics for valid cache
 
 /**
  * Read news data from cache
- * In development mode, will use the most recent cache file regardless of date
- * In production, only returns cache for the specified date
- * Only returns cache if it has sufficient coverage (MIN_TOPICS_FOR_CACHE)
+ * In development mode, we NO LONGER fallback to most recent cache
+ * This was the cause of "old reports" appearing
  */
 async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | null> {
   let attemptedFile = getCacheFilePath(date);
   try {
     let cacheFile = attemptedFile;
 
-    // In development mode, if today's cache doesn't exist, use the most recent cache
-    if (process.env.NODE_ENV === 'development') {
-      try {
-        await fs.access(cacheFile);
-      } catch {
-        // Today's cache doesn't exist, find the most recent cache file
-        console.log(`[Cache] Today's cache not found, looking for most recent cache...`);
-        try {
-          const files = await fs.readdir(CACHE_DIR);
-          const cacheFiles = files
-            .filter(f => f.startsWith('news-') && f.endsWith('.json'))
-            .sort()
-            .reverse();
-          
-          if (cacheFiles.length > 0) {
-            cacheFile = path.join(CACHE_DIR, cacheFiles[0]);
-            attemptedFile = cacheFile;
-            console.log(`[Cache] Using most recent cache: ${cacheFiles[0]}`);
-          }
-        } catch {
-          // No cache directory or files
-          return null;
-        }
-      }
-    }
-    
     const data = await fs.readFile(cacheFile, 'utf-8');
     const cached = JSON.parse(data);
-    
+
     // Validate cache has minimum coverage
     if (!Array.isArray(cached) || cached.length < MIN_TOPICS_FOR_CACHE) {
       console.warn(`[Cache] ⚠ Cache has insufficient coverage (${cached?.length || 0}/${MIN_TOPICS_FOR_CACHE} topics) - fetching fresh data`);
       return null;
     }
-    
+
     console.log(`[Cache] ✓ Loaded ${cached.length} topics from cache (${cacheFile})`);
     return cached;
   } catch (error) {
@@ -755,11 +782,6 @@ async function readNewsCache(date: Date = new Date()): Promise<NewsContent[] | n
     return null;
   }
 }
-
-/**
- * Write news data to cache
- * Only saves if data has sufficient coverage (MIN_TOPICS_FOR_CACHE)
- */
 async function writeNewsCache(data: NewsContent[], date: Date = new Date()): Promise<void> {
   try {
     // Don't cache insufficient data
@@ -767,7 +789,7 @@ async function writeNewsCache(data: NewsContent[], date: Date = new Date()): Pro
       console.warn(`[Cache] ⚠ Not caching insufficient data (${data?.length || 0}/${MIN_TOPICS_FOR_CACHE} topics) - will retry on next request`);
       return;
     }
-    
+
     await fs.mkdir(CACHE_DIR, { recursive: true });
     const cacheFile = getCacheFilePath(date);
     await fs.writeFile(cacheFile, JSON.stringify(data, null, 2), 'utf-8');
@@ -799,9 +821,9 @@ async function retryTopicWithFallbackQuery(topic: { name: string; query: string;
     console.log(`[Retry] No fallback query available for ${topic.name}`);
     return { topic: topic.name, articles: [] };
   }
-  
+
   console.log(`[Retry] Attempting ${topic.name} with simplified query: "${topic.fallbackQuery}"`);
-  
+
   // Try with the simpler fallback query
   const fallbackTopic = { ...topic, query: topic.fallbackQuery };
   return await scrapeNews(fallbackTopic);
@@ -814,16 +836,16 @@ async function retryTopicWithFallbackQuery(topic: { name: string; query: string;
  */
 async function targetedBraveSearchFallback(topic: { name: string; query: string; fallbackQuery?: string; freshness: number }): Promise<NewsContent> {
   console.log(`[Targeted Fallback] Using Brave general search for underrepresented topic: ${topic.name}`);
-  
+
   const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   if (!apiKey) {
     return { topic: topic.name, articles: [] };
   }
-  
+
   try {
     // Use fallback query if available, otherwise primary query
     const searchQuery = topic.fallbackQuery || topic.query;
-    
+
     // Use longer freshness window for underrepresented topics (7 days)
     const response = await fetch(
       `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(searchQuery + " news")}&count=5&freshness=pw`,
@@ -835,23 +857,23 @@ async function targetedBraveSearchFallback(topic: { name: string; query: string;
         signal: AbortSignal.timeout(10000)
       }
     );
-    
+
     if (response.status === 429) {
       console.warn(`[Targeted Fallback] Rate limit hit for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     if (!response.ok) {
       return { topic: topic.name, articles: [] };
     }
-    
+
     const data = await response.json();
-    
+
     if (!data.web?.results || data.web.results.length === 0) {
       console.warn(`[Targeted Fallback] No results found for ${topic.name}`);
       return { topic: topic.name, articles: [] };
     }
-    
+
     // Parse articles (same logic as regular Brave Search)
     const targetedFreshnessHours = Math.max(topic.freshness, 24 * 7);
     const articles = data.web.results
@@ -862,16 +884,16 @@ async function targetedBraveSearchFallback(topic: { name: string; query: string;
         ...article,
         source: article.source || "Brave Search"
       }));
-    
+
     if (articles.length > 0) {
       console.log(`[Targeted Fallback] ✓ Found ${articles.length} articles for ${topic.name}`);
     }
-    
+
     return {
       topic: topic.name,
       articles
     };
-    
+
   } catch (error) {
     console.error(`[Targeted Fallback] Error for ${topic.name}:`, error);
     return { topic: topic.name, articles: [] };
@@ -887,7 +909,7 @@ async function targetedBraveSearchFallback(topic: { name: string; query: string;
  * @param forceRefresh - If true, bypasses cache and fetches fresh data
  * @param underrepresentedTopics - Topics that haven't been covered in last 5 reports (for targeted fallback)
  */
-const MAX_CONCURRENT_TOPICS = 4;
+const MAX_CONCURRENT_TOPICS = 2;
 
 export async function scrapeAllNews(forceRefresh: boolean = false, underrepresentedTopics: string[] = []): Promise<NewsContent[]> {
   // Check cache first unless forced refresh
@@ -898,12 +920,12 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
       return cached;
     }
   }
-  
+
   const results: NewsContent[] = [];
   const failedTopics: typeof NEWS_TOPICS = [];
-  
+
   console.log(`\n${"=".repeat(60)}\n  STARTING MULTI-SOURCE NEWS AGGREGATION\n${"=".repeat(60)}`);
-  
+
   // PHASE 1: Initial scrape in small concurrent batches
   for (let i = 0; i < NEWS_TOPICS.length; i += MAX_CONCURRENT_TOPICS) {
     const batch = NEWS_TOPICS.slice(i, i + MAX_CONCURRENT_TOPICS);
@@ -926,17 +948,17 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
     }
 
     if (i + MAX_CONCURRENT_TOPICS < NEWS_TOPICS.length) {
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
-  
+
   console.log(`\n[Phase 1 Complete] ${results.length}/${NEWS_TOPICS.length} topics successful, ${failedTopics.length} failed`);
-  
+
   // PHASE 2: Sequential retry with fallback queries for failed topics
   if (failedTopics.length > 0) {
     console.log(`\n[Phase 2] Retrying ${failedTopics.length} failed topics with simplified queries...`);
     await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay before retries
-    
+
     for (const topic of [...failedTopics]) {
       try {
         const content = await retryTopicWithFallbackQuery(topic);
@@ -952,22 +974,22 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
         console.error(`[Retry] Error retrying ${topic.name}:`, error);
       }
     }
-    
+
     console.log(`[Phase 2 Complete] ${results.length}/${NEWS_TOPICS.length} topics now successful`);
   }
-  
+
   // PHASE 3: Targeted fallback for underrepresented topics still missing
-  const stillMissingUnderrepresented = failedTopics.filter(t => 
+  const stillMissingUnderrepresented = failedTopics.filter(t =>
     underrepresentedTopics.includes(t.name)
   );
-  
+
   if (stillMissingUnderrepresented.length > 0) {
     console.log(`\n[Phase 3] Targeted fallback for ${stillMissingUnderrepresented.length} underrepresented topics...`);
     await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay before targeted fallback
 
     // Limit to 5 targeted searches per run to preserve API quota while improving coverage
     const topicsToTarget = stillMissingUnderrepresented.slice(0, 5);
-    
+
     for (const topic of topicsToTarget) {
       try {
         const content = await targetedBraveSearchFallback(topic);
@@ -979,14 +1001,14 @@ export async function scrapeAllNews(forceRefresh: boolean = false, underrepresen
         console.error(`[Targeted Fallback] Error for ${topic.name}:`, error);
       }
     }
-    
+
     console.log(`[Phase 3 Complete] Final count: ${results.length}/${NEWS_TOPICS.length} topics successful`);
   }
-  
+
   console.log(`\n${"=".repeat(60)}\n  AGGREGATION COMPLETE: ${results.length}/${NEWS_TOPICS.length} topics successful\n${"=".repeat(60)}\n`);
-  
+
   // Save to cache for future use
   await writeNewsCache(results);
-  
+
   return results;
 }

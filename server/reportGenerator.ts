@@ -8,23 +8,38 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   // Get previous reports to identify underrepresented topics
   const previousReports = await storage.getRecentReports(5);
   const previousReportTexts = previousReports.map(r => r.content);
-  
+
   // Analyze which topics need targeted attention
   const { analyzeTopicCoverage } = await import("./openai");
   const { underrepresentedTopics } = analyzeTopicCoverage(
-    NEWS_TOPICS.map(t => ({ topic: t.name, articles: [] })), 
+    NEWS_TOPICS.map(t => ({ topic: t.name, articles: [] })),
     previousReportTexts
   );
-  
+
   if (underrepresentedTopics.length > 0) {
     console.log(`[Coverage] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(", ")}`);
   }
-  
+
   console.log("Step 1: Scraping news from all sources...");
   const newsContent = await scrapeAllNews(forceRefresh, underrepresentedTopics);
-  
+
   const successfulTopics = newsContent.filter(content => content.articles.length > 0);
   console.log(`Step 2: Retrieved news for ${successfulTopics.length} topics`);
+
+  // Verify absolute freshness (at least some news MUST be from the last 24h)
+  const now = new Date();
+  const recentArticlesCount = successfulTopics.flatMap(t => t.articles).filter(a => {
+    if (!a.publishedAt) return false;
+    const pubDate = new Date(a.publishedAt);
+    const ageHours = (now.getTime() - pubDate.getTime()) / (1000 * 60 * 60);
+    return ageHours <= 24;
+  }).length;
+
+  console.log(`[Freshness] Found ${recentArticlesCount} articles published in the last 24 hours.`);
+
+  if (recentArticlesCount < 5) {
+    throw new Error(`Insufficient fresh news: Only ${recentArticlesCount} articles from the last 24 hours. Aborting report generation to avoid stale news.`);
+  }
 
   // Topic coverage monitoring - compare against all 13 expected topics
   console.log('\n=== TOPIC COVERAGE SUMMARY ===');
@@ -60,16 +75,16 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
       `This may be due to API rate limiting or network issues. Please try again later.`
     );
   }
-  
+
   console.log(`Step 3: Using ${previousReports.length} previous reports for context`);
   console.log("Step 4: Generating AI news report...");
-  
+
   // Set to 5:30 AM on the current day
   const reportDate = new Date();
   reportDate.setHours(5, 30, 0, 0);
-  
+
   let reportText = await generateNewsReport(newsContent, previousReportTexts, reportDate);
-  
+
   // Validate and fix closing line to ensure consistency
   const requiredClosing = "That's it for the morning report. Have a great day!";
   if (!reportText.trim().endsWith(requiredClosing)) {
@@ -77,7 +92,7 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
     // Remove any existing closing and add the correct one
     reportText = reportText.trim().replace(/\n[^\n]*$/m, '') + "\n\n" + requiredClosing;
   }
-  
+
   console.log(`Step 5: Generated report (${reportText.length} characters)`);
 
   console.log("Step 6: Running automated fact check against sources...");
@@ -108,31 +123,31 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   }
 
   console.log("Step 7: Converting text to speech...");
-  
+
   // Generate audio file(s) - may be split into multiple parts
   const audioFileName = `report-${Date.now()}.mp3`;
   const audioPath = path.join(process.cwd(), "audio-reports", audioFileName);
-  
+
   const generatedAudioPaths = await generateAudioFromText(reportText, audioPath);
-  
+
   console.log(`Step 8: Audio generated - ${generatedAudioPaths.length} part(s)`);
   console.log("Step 9: Saving report to storage...");
-  
+
   // Convert file system paths to web paths
   const webAudioPaths = generatedAudioPaths.map(p => {
     const fileName = path.basename(p);
     return `/audio/${fileName}`;
   });
-  
+
   await storage.createReport({
     date: reportDate,
     content: reportText,
     audioPath: webAudioPaths[0],
     audioPaths: webAudioPaths,
   });
-  
+
   console.log("Report generation complete!");
-  
+
   // Clean up old audio files (keep last 30 days)
   await cleanupOldAudioFiles();
 }
@@ -145,23 +160,23 @@ async function cleanupOldAudioFiles(): Promise<void> {
   const audioDir = path.join(process.cwd(), "audio-reports");
   const RETENTION_DAYS = 30;
   const cutoffTime = Date.now() - (RETENTION_DAYS * 24 * 60 * 60 * 1000);
-  
+
   try {
     const files = await fs.readdir(audioDir);
     let deletedCount = 0;
-    
+
     for (const file of files) {
       if (!file.endsWith('.mp3')) continue;
-      
+
       const filePath = path.join(audioDir, file);
       const stats = await fs.stat(filePath);
-      
+
       if (stats.mtimeMs < cutoffTime) {
         await fs.unlink(filePath);
         deletedCount++;
       }
     }
-    
+
     if (deletedCount > 0) {
       console.log(`[Cleanup] Deleted ${deletedCount} audio file(s) older than ${RETENTION_DAYS} days`);
     }
