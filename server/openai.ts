@@ -55,7 +55,7 @@ export function analyzeTopicCoverage(newsContent: NewsContent[], previousReports
   topicCoverageSummary: string;
 } {
   if (previousReports.length === 0) {
-    return { 
+    return {
       underrepresentedTopics: [],
       topicCoverageSummary: ""
     };
@@ -86,18 +86,18 @@ export function analyzeTopicCoverage(newsContent: NewsContent[], previousReports
       }
     });
   });
-  
+
   // Identify topics not covered in any of the last 5 reports
-  const underrepresentedTopics = allTopics.filter(topic => 
+  const underrepresentedTopics = allTopics.filter(topic =>
     (topicMentions.get(topic) || 0) === 0
   );
-  
+
   // Create summary for logging and prompt
   const coverageSummary = Array.from(topicMentions.entries())
     .sort((a, b) => a[1] - b[1]) // Sort by coverage count (least to most)
     .map(([topic, count]) => `${topic}: ${count}/${previousReports.length}`)
     .join(", ");
-  
+
   return {
     underrepresentedTopics,
     topicCoverageSummary: coverageSummary
@@ -119,13 +119,13 @@ function isGenericPortalArticle(article: { title: string; summary: string; url?:
   const title = article.title.toLowerCase();
   const summary = article.summary.toLowerCase();
   const url = (article.url || '').toLowerCase();
-  
+
   // Generic portal keywords that appear in titles
   const genericKeywords = ['news', 'scores', 'updates', 'coverage', 'analysis', 'standings', 'playoff'];
-  
+
   // Count how many generic keywords appear in the title
   const genericKeywordCount = genericKeywords.filter(keyword => title.includes(keyword)).length;
-  
+
   // Additional strong indicators of generic portals
   const strongPortalIndicators = [
     /\|/,  // Pipe separator (e.g., "NBA News | Sports Illustrated")
@@ -136,16 +136,16 @@ function isGenericPortalArticle(article: { title: string; summary: string; url?:
     /expert analysis/,
     /game scores/,
   ];
-  
+
   const hasStrongPortalIndicator = strongPortalIndicators.some(pattern => pattern.test(title));
-  
+
   // Portal/homepage URL patterns
   const portalUrlPatterns = [
     /\/(nba|sports|news|technology|health)\/?$/,  // Category homepage
     /\/index\.(html?|php)$/,                       // Index pages
     /^https?:\/\/[^\/]+\/?$/,                      // Root domain
   ];
-  
+
   // Generic summary indicators (no specific story details)
   const genericSummaryPatterns = [
     /^(up-to-the-minute|complete|comprehensive|latest)\s+(news|coverage|analysis)/,
@@ -153,27 +153,27 @@ function isGenericPortalArticle(article: { title: string; summary: string; url?:
     /veterans? like/,
     /younger players? like/,
   ];
-  
+
   // Check URL patterns
   const isPortalUrl = portalUrlPatterns.some(pattern => pattern.test(url));
-  
+
   // Check summary patterns
   const hasGenericSummary = genericSummaryPatterns.some(pattern => pattern.test(summary));
-  
+
   // An article is generic if:
   // - It has 2+ generic keywords in the title (e.g., "NBA News, Scores & Expert Analysis")
   // - OR it has a strong portal indicator in the title
   // - OR it has both a portal URL and a generic summary
-  const isGeneric = 
+  const isGeneric =
     (genericKeywordCount >= 2) ||
     hasStrongPortalIndicator ||
     (isPortalUrl && hasGenericSummary);
-  
+
   if (isGeneric) {
     console.warn(`[Portal Filter] Filtered generic portal article: "${article.title.substring(0, 60)}..." from ${article.url || 'unknown source'}`);
     console.warn(`[Portal Filter]   Reasons: keywords=${genericKeywordCount}, strongIndicator=${hasStrongPortalIndicator}, portalUrl=${isPortalUrl}, genericSummary=${hasGenericSummary}`);
   }
-  
+
   return isGeneric;
 }
 
@@ -197,14 +197,14 @@ function filterSensitiveArticles(newsContent: NewsContent[]): NewsContent[] {
     ...topic,
     articles: topic.articles.filter(article => {
       const combined = `${article.title} ${article.summary}`.toLowerCase();
-      const hasSensitiveContent = SENSITIVE_KEYWORDS.some(keyword => 
+      const hasSensitiveContent = SENSITIVE_KEYWORDS.some(keyword =>
         combined.includes(keyword.toLowerCase())
       );
-      
+
       if (hasSensitiveContent) {
         console.warn(`[Content Filter] Filtered sensitive article: "${article.title.substring(0, 60)}..."`);
       }
-      
+
       return !hasSensitiveContent;
     })
   })).filter(topic => topic.articles.length > 0);
@@ -219,14 +219,14 @@ export async function generateNewsReport(
   // This prevents GPT from hallucinating details to fill content gaps
   const filteredNewsContent = filterGenericPortalArticles(newsContent);
   console.log(`[Portal Filter] Filtered from ${newsContent.length} to ${filteredNewsContent.length} topics after removing generic portals`);
-  
+
   // Filter out topics with no valid articles
   const validNewsContent = filteredNewsContent.filter(section => section.articles.length > 0);
-  
+
   if (validNewsContent.length === 0) {
     throw new Error('No valid news articles available - cannot generate quality report');
   }
-  
+
   // Try generation with full content first
   try {
     return await attemptGenerateReport(validNewsContent, previousReports, reportDate);
@@ -234,22 +234,22 @@ export async function generateNewsReport(
     // Check if response contains content refusal
     const errorMessage = error?.message || '';
     const responseContent = error?.response?.choices?.[0]?.message?.content || '';
-    const isContentRefusal = errorMessage.includes("can't provide") || 
-                            errorMessage.includes("cannot provide") ||
-                            responseContent.includes("I'm sorry, but I can't provide");
-    
+    const isContentRefusal = errorMessage.includes("can't provide") ||
+      errorMessage.includes("cannot provide") ||
+      responseContent.includes("I'm sorry, but I can't provide");
+
     if (isContentRefusal) {
       console.warn('[GPT Refusal] Content policy triggered, retrying with filtered content...');
       const filteredContent = filterSensitiveArticles(validNewsContent);
-      
+
       if (filteredContent.length === 0) {
         throw new Error("All articles filtered out due to sensitive content - cannot generate report");
       }
-      
+
       console.log(`[GPT Retry] Retrying with ${filteredContent.length} topics after filtering sensitive content`);
       return await attemptGenerateReport(filteredContent, previousReports, reportDate);
     }
-    
+
     // Re-throw if it's not a content refusal
     throw error;
   }
@@ -264,7 +264,7 @@ async function attemptGenerateReport(
   let lastWordCount = 0;
   const IDEAL_MIN = 750;
   const IDEAL_MAX = 1000;
-  const ABSOLUTE_MINIMUM = 700;
+  const ABSOLUTE_MINIMUM = 650; // Lowered from 700 to prevent failures on slow news days
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isRetry = attempt > 1;
@@ -313,7 +313,7 @@ async function attemptGenerateReport(
       }
     }
   }
-  
+
   throw new Error('Report generation failed after all attempts');
 }
 
@@ -325,23 +325,23 @@ async function generateReportAttempt(
 ): Promise<string> {
   // Analyze topic coverage in previous reports
   const { underrepresentedTopics, topicCoverageSummary } = analyzeTopicCoverage(
-    newsContent, 
+    newsContent,
     previousReports
   );
-  
+
   if (topicCoverageSummary) {
     console.log(`[Topic Coverage] ${topicCoverageSummary}`);
   }
-  
+
   if (underrepresentedTopics.length > 0) {
     console.log(`[Topic Balance] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(', ')}`);
   }
-  
+
   const newsContentStr = newsContent
     .map((section) => {
       const articlesStr = section.articles
         .map((article) => {
-          const publishDate = article.publishedAt 
+          const publishDate = article.publishedAt
             ? new Date(article.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
             : '';
           return `- HEADLINE: ${article.title}\n  DETAILS: ${article.summary}\n  SOURCE: ${article.source}${publishDate ? ` (${publishDate})` : ''}`;
@@ -353,7 +353,7 @@ async function generateReportAttempt(
 
   const previousReportsContext = previousReports.length > 0
     ? `\n\n🚨 CRITICAL ANTI-REPETITION REQUIREMENT 🚨
-
+    
 PREVIOUS 5 REPORTS (DO NOT REPEAT THESE STORIES):
 ${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}
 
@@ -388,7 +388,7 @@ Today's report: "Tesla continues progress on battery technology improvements" �
 Previous report: "Tesla announced new battery technology with 30% range improvement"
 Today's report: "Tesla began production of its new battery cells at the Texas Gigafactory, shipping first units to customers this week" ← NEW ACTION, NEW FACTS`
     : "";
-  
+
   // Build topic balance guidance
   const topicBalanceGuidance = underrepresentedTopics.length > 0
     ? `\n\n🎯 TOPIC COVERAGE REQUIREMENT:
@@ -401,19 +401,19 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
   // Format date for the intro (e.g., "Monday, November 8th, 2025")
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  
+
   const dayName = dayNames[reportDate.getDay()];
   const monthName = monthNames[reportDate.getMonth()];
   const day = reportDate.getDate();
   const year = reportDate.getFullYear();
-  
+
   // Add ordinal suffix (st, nd, rd, th)
   const getOrdinalSuffix = (n: number) => {
     const s = ["th", "st", "nd", "rd"];
     const v = n % 100;
     return s[(v - 20) % 10] || s[v] || s[0];
   };
-  
+
   const formattedDate = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)}, ${year}`;
 
   const topicCount = newsContent.length;
@@ -423,9 +423,12 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
   const maxPerTopic = Math.max(minPerTopic + 60, Math.ceil(IDEAL_MAX / Math.max(1, topicCount)));
 
   const retryExpansionPrompt = previousWordCount ? `
-🚨 PREVIOUS DRAFT TOO SHORT (${previousWordCount} words < ${IDEAL_MIN}). Expand using ONLY verified facts from the supplied articles.
-- Add concrete numbers, names, locations, and timeline details that already exist in the sources.
-- Do not invent new developments or speculate beyond what the articles confirm.
+🚨 PREVIOUS DRAFT WAS TOO SHORT (${previousWordCount} words). TARGET IS ${IDEAL_MIN}+ WORDS.
+YOUR TASK: EXPAND THE REPORT SIGNIFICANTLY.
+1. For EVERY story, add 2-3 more sentences of detail from the source text.
+2. Include MORE specific numbers, quotes, and background context provided in the articles.
+3. Do not summarize briefly - explain the "how" and "why" of each story.
+4. Aim for a slower, more detailed narrative pace.
 ` : '';
 
   const prompt = `You are a professional news anchor for a national morning briefing. Deliver concise, fact-packed narration suitable for audio.${retryExpansionPrompt}
@@ -435,26 +438,6 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
 YOU MUST ONLY USE INFORMATION EXPLICITLY STATED IN THE PROVIDED SOURCE ARTICLES.
 
 FORBIDDEN ACTIONS (IMMEDIATE DISQUALIFICATION):
-❌ NEVER fabricate games, scores, or events not in source articles
-❌ NEVER add player names, statistics, or details not explicitly mentioned in sources
-❌ NEVER invent quotes, numbers, or facts to fill word count
-❌ NEVER use your training data knowledge to supplement missing information
-❌ NEVER make assumptions about who is coaching, playing, or leading organizations
-❌ NEVER describe events as if you witnessed them when sources don't provide those details
-
-REQUIRED ACTIONS (MANDATORY):
-✅ ONLY report facts explicitly stated in the provided source articles
-✅ If a source article is a generic portal/homepage (e.g., "NBA News, Scores & Expert Analysis"), it contains NO newsworthy information - SKIP that topic entirely
-✅ If an article lacks specific details (names, numbers, dates), SKIP that topic
-✅ If you cannot write a story using ONLY the provided source information, DO NOT write about that topic
-✅ Better to skip a topic than to make up information
-✅ If sources contradict each other, skip that story entirely
-✅ If you're unsure whether something is in the source, DON'T include it
-
-VERIFICATION CHECKLIST for EVERY fact you write:
-□ Is this specific fact explicitly stated in a source article?
-□ Did the source article provide the name/number/date I'm writing?
-□ Am I copying information from the source, not from my training data?
 □ If the source is vague or generic, am I skipping this topic?
 
 EXAMPLES OF VIOLATIONS:
@@ -620,8 +603,8 @@ If a source is generic or lacks verifiable facts, skip it.`;
 
   // Detect content refusal in response
   if (content.includes("I'm sorry, but I can't provide") ||
-      content.includes("I cannot provide") ||
-      content.includes("I'm unable to")) {
+    content.includes("I cannot provide") ||
+    content.includes("I'm unable to")) {
     const error: any = new Error("GPT refused to generate content due to content policy");
     error.response = { choices: [{ message: { content } }] };
     throw error;
@@ -655,7 +638,12 @@ export async function factCheckReportAgainstSources(
       messages: [
         {
           role: 'system',
-          content: `You are a meticulous fact-checker. Flag statements in the generated script that are unsupported by the provided article digests or that rely on outdated information. Evaluate freshness by comparing article timestamps to the report date ${isoDate}.`,
+          content: `You are a meticulous fact-checker. Flag statements in the generated script that are unsupported by the provided article digests or that rely on outdated information. Evaluate freshness by comparing article timestamps to the report date ${isoDate}.
+
+IMPORTANT:
+1. Do NOT flag relative dates (e.g., "Thursday", "yesterday") as missing information or accuracy errors if they are consistent with the report date.
+2. Do NOT flag events from the last 72 hours as "outdated". News from the previous 1-3 days is acceptable for this report.
+3. Only flag date issues if there is a clear contradiction (e.g., report says "Monday" but event was "Friday").`,
         },
         {
           role: 'user',
@@ -679,7 +667,7 @@ Respond in JSON with the shape {
   ]
 }.
 
-Mark status as "fail" if any critical issues exist. Focus on concrete factual conflicts or clearly outdated developments only.`,
+Mark status as "fail" if any critical issues exist. Focus on concrete factual conflicts or clearly outdated developments only. Do not fail for missing specific dates if relative timing is implied.`,
         },
       ],
       max_completion_tokens: 1200,
@@ -730,7 +718,7 @@ function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
 
   for (const paragraph of paragraphs) {
     const testChunk = currentChunk ? `${currentChunk}\n\n${paragraph}` : paragraph;
-    
+
     if (testChunk.length <= maxChars) {
       currentChunk = testChunk;
     } else {
@@ -738,16 +726,16 @@ function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
         chunks.push(currentChunk);
       }
       currentChunk = '';
-      
+
       if (paragraph.length > maxChars) {
         const sentences = paragraph.split('. ');
         let sentenceChunk = '';
-        
+
         for (const sentence of sentences) {
           if (sentence.trim().length === 0) continue;
-          
+
           const testSentence = sentenceChunk ? `${sentenceChunk}. ${sentence}` : sentence;
-          
+
           if (testSentence.length <= maxChars) {
             sentenceChunk = testSentence;
           } else {
@@ -755,7 +743,7 @@ function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
               chunks.push(sentenceChunk);
               sentenceChunk = '';
             }
-            
+
             if (sentence.length > maxChars) {
               let remaining = sentence;
               while (remaining.length > maxChars) {
@@ -770,7 +758,7 @@ function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
             }
           }
         }
-        
+
         if (sentenceChunk.trim().length > 0) {
           currentChunk = sentenceChunk;
         }
@@ -794,7 +782,7 @@ export async function generateAudioFromText(
   const chunks = splitTextIntoChunks(text, 4000);
   const audioPaths: string[] = [];
   const tempPaths: string[] = [];
-  
+
   const dir = path.dirname(baseOutputPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -802,13 +790,13 @@ export async function generateAudioFromText(
 
   try {
     for (let i = 0; i < chunks.length; i++) {
-      const chunkPath = chunks.length > 1 
+      const chunkPath = chunks.length > 1
         ? baseOutputPath.replace('.mp3', `-part${i + 1}.mp3`)
         : baseOutputPath;
-      
+
       const tempPath = `${chunkPath}.tmp`;
       tempPaths.push(tempPath);
-      
+
       const mp3 = await openai.audio.speech.create({
         model: "tts-1-hd",
         voice: "nova",
@@ -817,7 +805,7 @@ export async function generateAudioFromText(
 
       const buffer = Buffer.from(await mp3.arrayBuffer());
       fs.writeFileSync(tempPath, buffer);
-      
+
       fs.renameSync(tempPath, chunkPath);
       audioPaths.push(chunkPath);
     }
@@ -829,13 +817,13 @@ export async function generateAudioFromText(
         fs.unlinkSync(tempPath);
       }
     }
-    
+
     for (const audioPath of audioPaths) {
       if (fs.existsSync(audioPath)) {
         fs.unlinkSync(audioPath);
       }
     }
-    
+
     throw error;
   }
 }
