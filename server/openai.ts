@@ -291,9 +291,9 @@ async function attemptGenerateReport(
 ): Promise<string> {
   const maxAttempts = 2;
   let lastWordCount = 0;
-  const IDEAL_MIN = 750;
-  const IDEAL_MAX = 1000;
-  const ABSOLUTE_MINIMUM = 650; // Lowered from 700 to prevent failures on slow news days
+  const IDEAL_MIN = 900;  // ~6 minutes of audio
+  const IDEAL_MAX = 1350; // ~9 minutes of audio
+  const ABSOLUTE_MINIMUM = 600; // ~4 minutes of audio (handles slow news days)
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const isRetry = attempt > 1;
@@ -420,8 +420,8 @@ Include these if they have newsworthy content with specific facts.`
   const formattedDate = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)}, ${year}`;
 
   const topicCount = newsContent.length;
-  const IDEAL_MIN = 750;
-  const IDEAL_MAX = 1000;
+  const IDEAL_MIN = 900;  // ~6 minutes of audio
+  const IDEAL_MAX = 1350; // ~9 minutes of audio
   const minPerTopic = Math.max(120, Math.floor(IDEAL_MIN / Math.max(1, topicCount)));
   const maxPerTopic = Math.max(minPerTopic + 60, Math.ceil(IDEAL_MAX / Math.max(1, topicCount)));
 
