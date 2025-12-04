@@ -813,6 +813,37 @@ export async function clearNewsCache(date?: Date): Promise<void> {
 }
 
 /**
+ * Cleanup old cache files (older than 7 days)
+ * Called automatically during news scraping to prevent cache buildup
+ */
+async function cleanupOldCacheFiles(): Promise<void> {
+  try {
+    const files = await fs.readdir(CACHE_DIR);
+    const RETENTION_DAYS = 7;
+    const cutoffTime = Date.now() - (RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    let deletedCount = 0;
+
+    for (const file of files) {
+      if (!file.startsWith('news-') || !file.endsWith('.json')) continue;
+
+      const filePath = path.join(CACHE_DIR, file);
+      const stats = await fs.stat(filePath);
+
+      if (stats.mtimeMs < cutoffTime) {
+        await fs.unlink(filePath);
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.log(`[Cache Cleanup] Deleted ${deletedCount} cache file(s) older than ${RETENTION_DAYS} days`);
+    }
+  } catch (error) {
+    console.error('[Cache Cleanup] Error cleaning up old cache files:', error);
+  }
+}
+
+/**
  * Retry a failed topic with simplified fallback query
  * Uses a simpler query string to increase chances of finding articles
  */
@@ -912,6 +943,9 @@ async function targetedBraveSearchFallback(topic: { name: string; query: string;
 const MAX_CONCURRENT_TOPICS = 2;
 
 export async function scrapeAllNews(forceRefresh: boolean = false, underrepresentedTopics: string[] = []): Promise<NewsContent[]> {
+  // Cleanup old cache files on startup
+  await cleanupOldCacheFiles();
+
   // Check cache first unless forced refresh
   if (!forceRefresh) {
     const cached = await readNewsCache();

@@ -3,11 +3,44 @@ import { storage } from "./storage";
 import { scrapeAllNews, NEWS_TOPICS } from "./newsService";
 import { generateNewsReport, generateAudioFromText, factCheckReportAgainstSources } from "./openai";
 import { promises as fs } from "fs";
+import type { Report } from "@db/schema";
+
+/**
+ * Filter reports to only include one report per unique date
+ * Prevents comparing against multiple reports from the same day
+ */
+function filterReportsFromUniqueDates(reports: Report[]): Report[] {
+  const seenDates = new Set<string>();
+  const uniqueReports: Report[] = [];
+
+  for (const report of reports) {
+    const reportDate = new Date(report.date);
+    const dateKey = `${reportDate.getFullYear()}-${reportDate.getMonth()}-${reportDate.getDate()}`;
+
+    if (!seenDates.has(dateKey)) {
+      seenDates.add(dateKey);
+      uniqueReports.push(report);
+    }
+  }
+
+  console.log(`[Report Filter] Filtered ${reports.length} reports to ${uniqueReports.length} unique dates`);
+  return uniqueReports;
+}
 
 export async function generateDailyReport(forceRefresh: boolean = false): Promise<void> {
-  // Get previous reports to identify underrepresented topics
-  const previousReports = await storage.getRecentReports(5);
-  const previousReportTexts = previousReports.map(r => r.content);
+  // ALWAYS force refresh for daily reports to ensure fresh content
+  // This prevents reusing stale cache from same-day test generations
+  const actualForceRefresh = true;
+  console.log("[Report Generation] Using fresh news data (cache disabled for daily reports)");
+
+  // Get previous reports from UNIQUE dates to avoid comparing against same-day duplicates
+  const allPreviousReports = await storage.getRecentReports(10);
+
+  // Filter to only reports from different dates
+  const uniqueDateReports = filterReportsFromUniqueDates(allPreviousReports);
+  const previousReportTexts = uniqueDateReports.slice(0, 5).map(r => r.content);
+
+  console.log(`[Report Generation] Analyzing ${previousReportTexts.length} previous reports from unique dates`);
 
   // Analyze which topics need targeted attention
   const { analyzeTopicCoverage } = await import("./openai");
@@ -17,11 +50,11 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   );
 
   if (underrepresentedTopics.length > 0) {
-    console.log(`[Coverage] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(", ")}`);
+    console.log(`[Coverage] Underrepresented topics (0 mentions in last ${previousReportTexts.length} unique reports): ${underrepresentedTopics.join(", ")}`);
   }
 
   console.log("Step 1: Scraping news from all sources...");
-  const newsContent = await scrapeAllNews(forceRefresh, underrepresentedTopics);
+  const newsContent = await scrapeAllNews(actualForceRefresh, underrepresentedTopics);
 
   const successfulTopics = newsContent.filter(content => content.articles.length > 0);
   console.log(`Step 2: Retrieved news for ${successfulTopics.length} topics`);
@@ -37,8 +70,9 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
 
   console.log(`[Freshness] Found ${recentArticlesCount} articles published in the last 24 hours.`);
 
-  if (recentArticlesCount < 5) {
-    throw new Error(`Insufficient fresh news: Only ${recentArticlesCount} articles from the last 24 hours. Aborting report generation to avoid stale news.`);
+  // Reduced from 5 to 3 to handle slow news days
+  if (recentArticlesCount < 3) {
+    throw new Error(`Insufficient fresh news: Only ${recentArticlesCount} articles from the last 24 hours (minimum 3 required). Aborting report generation to avoid stale news.`);
   }
 
   // Topic coverage monitoring - compare against all 13 expected topics
@@ -66,7 +100,8 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
   console.log('==============================\n');
 
   // REJECT if too few topics - prevents generating low-quality reports
-  const MINIMUM_TOPICS_FOR_QUALITY = 8;
+  // Reduced from 8 to 6 to handle slow news days and API rate limits
+  const MINIMUM_TOPICS_FOR_QUALITY = 6;
   if (successfulTopics.length < MINIMUM_TOPICS_FOR_QUALITY) {
     throw new Error(
       `Insufficient topic coverage: ${successfulTopics.length}/${NEWS_TOPICS.length} topics. ` +
@@ -76,7 +111,7 @@ export async function generateDailyReport(forceRefresh: boolean = false): Promis
     );
   }
 
-  console.log(`Step 3: Using ${previousReports.length} previous reports for context`);
+  console.log(`Step 3: Using ${previousReportTexts.length} previous reports from unique dates for context`);
   console.log("Step 4: Generating AI news report...");
 
   // Set to 5:30 AM on the current day
