@@ -120,6 +120,13 @@ export function startScheduler() {
     const pstTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
     console.log(`[${now.toISOString()}] [PST: ${pstTime.toLocaleString()}] Starting scheduled daily report generation...`);
 
+    // Check if report already exists for today
+    const hasReportForToday = await checkReportExistsForToday();
+    if (hasReportForToday) {
+      console.log(`[${now.toISOString()}] Report for today already exists. Skipping duplicate generation.`);
+      return;
+    }
+
     // Validate storage mode before generating scheduled reports
     const validation = await validateStorageMode();
     console.log(`[${now.toISOString()}] [Storage Mode] ${validation.message}`);
@@ -159,12 +166,10 @@ export function startScheduler() {
       return;
     }
 
-    const latestReport = await storage.getLatestReport();
+    // Check if report already exists for today's scheduled date (5:30 AM)
+    const hasReportForToday = await checkReportExistsForToday();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (!latestReport || new Date(latestReport.date) < today) {
+    if (!hasReportForToday) {
       console.log("No report for today found. Generating initial report...");
       try {
         await generateDailyReport(true); // Always use fresh API calls for automatic reports
@@ -176,4 +181,30 @@ export function startScheduler() {
       console.log("Report for today already exists");
     }
   }, 2000);
+}
+
+/**
+ * Check if a report already exists for today's scheduled date
+ * Returns true if a report exists with today's date (5:30 AM)
+ */
+async function checkReportExistsForToday(): Promise<boolean> {
+  const recentReports = await storage.getRecentReports(10);
+
+  // Get today's date at 5:30 AM (the scheduled report time)
+  const today = new Date();
+  const scheduledTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 30, 0, 0);
+
+  // Check if any report exists with today's scheduled date
+  const hasReport = recentReports.some(report => {
+    const reportDate = new Date(report.date);
+    return reportDate.getFullYear() === scheduledTime.getFullYear() &&
+           reportDate.getMonth() === scheduledTime.getMonth() &&
+           reportDate.getDate() === scheduledTime.getDate();
+  });
+
+  if (hasReport) {
+    console.log(`[Scheduler] Report already exists for ${scheduledTime.toLocaleDateString()}`);
+  }
+
+  return hasReport;
 }

@@ -47,6 +47,35 @@ const TOPIC_KEYWORDS: Record<string, string[]> = {
 };
 
 /**
+ * Extract unique dates from previous reports to avoid analyzing duplicate reports from same day
+ * Takes only the first report from each unique date
+ */
+function getReportsFromUniqueDates(reports: string[]): string[] {
+  if (reports.length === 0) return [];
+
+  // Extract date from each report (format: "Here's your morning report for [DayName], [Month] [Day], [Year]")
+  const seenDates = new Set<string>();
+  const uniqueReports: string[] = [];
+
+  for (const report of reports) {
+    // Extract date from opening line
+    const dateMatch = report.match(/Here's your morning report for ([^.]+)\./);
+    if (dateMatch) {
+      const dateStr = dateMatch[1];
+      if (!seenDates.has(dateStr)) {
+        seenDates.add(dateStr);
+        uniqueReports.push(report);
+      }
+    } else {
+      // If no date found, include it (fallback)
+      uniqueReports.push(report);
+    }
+  }
+
+  return uniqueReports;
+}
+
+/**
  * Analyzes previous reports to determine which topics haven't been covered recently
  * Ensures balanced coverage across all topics over a 5-report cycle
  */
@@ -324,9 +353,12 @@ async function generateReportAttempt(
   previousWordCount?: number
 ): Promise<string> {
   // Analyze topic coverage in previous reports
+  // Only use reports from DIFFERENT days to avoid comparing against same-day duplicates
+  const uniqueDateReports = getReportsFromUniqueDates(previousReports);
+
   const { underrepresentedTopics, topicCoverageSummary } = analyzeTopicCoverage(
     newsContent,
-    previousReports
+    uniqueDateReports
   );
 
   if (topicCoverageSummary) {
@@ -334,7 +366,7 @@ async function generateReportAttempt(
   }
 
   if (underrepresentedTopics.length > 0) {
-    console.log(`[Topic Balance] Underrepresented topics (0 mentions in last ${previousReports.length} reports): ${underrepresentedTopics.join(', ')}`);
+    console.log(`[Topic Balance] Underrepresented topics (0 mentions in last ${uniqueDateReports.length} unique date reports): ${underrepresentedTopics.join(', ')}`);
   }
 
   const newsContentStr = newsContent
@@ -351,51 +383,22 @@ async function generateReportAttempt(
     })
     .join("\n\n");
 
-  const previousReportsContext = previousReports.length > 0
-    ? `\n\n🚨 CRITICAL ANTI-REPETITION REQUIREMENT 🚨
-    
-PREVIOUS 5 REPORTS (DO NOT REPEAT THESE STORIES):
-${previousReports.map((report, i) => `--- Report ${i + 1} ---\n${report}`).join("\n\n")}
+  const previousReportsContext = uniqueDateReports.length > 0
+    ? `\n\nPREVIOUS REPORTS (DO NOT REPEAT):
+${uniqueDateReports.slice(0, 3).map((report, i) => `--- Report ${i + 1} ---\n${report.substring(0, 500)}...`).join("\n\n")}
 
-📋 REPETITION POLICY (STRICTLY ENFORCED):
-1. DO NOT cover the same story/event from previous reports UNLESS there is a NEW development
-2. A "NEW development" means:
-   ✅ A new action taken (e.g., company announced → company launched)
-   ✅ New numbers/data released (e.g., Q3 results → Q4 results)
-   ✅ New follow-up event (e.g., announcement → product ships)
-   ✅ Breaking update to ongoing story (e.g., investigation → arrest made)
-   
-3. NOT acceptable as "new development":
-   ❌ Same story with slightly different wording
-   ❌ General progress on previously covered topics
-   ❌ Continuation of same trend without new data points
-   ❌ "Still happening" or "ongoing" without specific new facts
-   
-4. REQUIRED for any repeat story:
-   - MUST explicitly state what's NEW (e.g., "In an update to yesterday's story...")
-   - MUST include NEW specific facts (names, numbers, dates) not in previous reports
-   - MUST represent meaningful progression, not just restatement
-   
-5. When in doubt: SKIP the story and find fresh news instead
-   - It's better to have 6 fresh topics than 8 topics with 2 repeats
-   - Listeners expect DIFFERENT news each day, not reruns
-
-❌ EXAMPLE OF VIOLATION:
-Previous report: "Tesla announced new battery technology with 30% range improvement"
-Today's report: "Tesla continues progress on battery technology improvements" ← REJECT THIS
-
-✅ EXAMPLE OF ACCEPTABLE REPEAT:
-Previous report: "Tesla announced new battery technology with 30% range improvement"
-Today's report: "Tesla began production of its new battery cells at the Texas Gigafactory, shipping first units to customers this week" ← NEW ACTION, NEW FACTS`
+REPETITION RULES:
+- Do NOT cover the same story from previous reports unless there is a NEW development
+- NEW development = new action, new data, new event (not just rewording)
+- When in doubt, skip the story and find fresh news`
     : "";
 
   // Build topic balance guidance
   const topicBalanceGuidance = underrepresentedTopics.length > 0
-    ? `\n\n🎯 TOPIC COVERAGE REQUIREMENT:
-The following topics have NOT appeared in the last ${previousReports.length} reports and MUST be included in today's report if they have newsworthy content with specific facts:
-${underrepresentedTopics.map(t => `- ${t}`).join('\n')}
+    ? `\n\nPRIORITY TOPICS (haven't appeared in last ${uniqueDateReports.length} reports):
+${underrepresentedTopics.join(', ')}
 
-To ensure balanced coverage, prioritize these underrepresented topics when selecting stories. Every topic should appear at least once every 5 reports.`
+Include these if they have newsworthy content with specific facts.`
     : "";
 
   // Format date for the intro (e.g., "Monday, November 8th, 2025")
@@ -423,162 +426,56 @@ To ensure balanced coverage, prioritize these underrepresented topics when selec
   const maxPerTopic = Math.max(minPerTopic + 60, Math.ceil(IDEAL_MAX / Math.max(1, topicCount)));
 
   const retryExpansionPrompt = previousWordCount ? `
-🚨 PREVIOUS DRAFT WAS TOO SHORT (${previousWordCount} words). TARGET IS ${IDEAL_MIN}+ WORDS.
-YOUR TASK: EXPAND THE REPORT SIGNIFICANTLY.
-1. For EVERY story, add 2-3 more sentences of detail from the source text.
-2. Include MORE specific numbers, quotes, and background context provided in the articles.
-3. Do not summarize briefly - explain the "how" and "why" of each story.
-4. Aim for a slower, more detailed narrative pace.
+PREVIOUS DRAFT: ${previousWordCount} words (too short)
+TARGET: ${IDEAL_MIN}+ words
+Add 2-3 more sentences per story with specific details from sources.
 ` : '';
 
-  const prompt = `You are a professional news anchor for a national morning briefing. Deliver concise, fact-packed narration suitable for audio.${retryExpansionPrompt}
+  const prompt = `You are a professional news anchor writing a morning briefing for audio.${retryExpansionPrompt}
 
-🚨🚨🚨 ANTI-HALLUCINATION POLICY (ABSOLUTE REQUIREMENT) 🚨🚨🚨
+CORE RULES:
+1. ACCURACY FIRST - Only use facts explicitly stated in source articles
+2. Skip vague/generic sources - Better to skip than guess
+3. Each story needs: specific names + numbers/metrics + locations/dates
+4. No speculation, editorialization, or "might/could" statements
 
-YOU MUST ONLY USE INFORMATION EXPLICITLY STATED IN THE PROVIDED SOURCE ARTICLES.
+FORMAT:
+- Start: "Here's your morning report for ${formattedDate}."
+- End: "That's it for the morning report. Have a great day!"
+- Target: ${IDEAL_MIN}-${IDEAL_MAX} words (~${minPerTopic}-${maxPerTopic} words per topic)
+- Natural transitions between topics (no section headers)
+- Professional NPR/BBC style, short sentences for audio
 
-FORBIDDEN ACTIONS (IMMEDIATE DISQUALIFICATION):
-□ If the source is vague or generic, am I skipping this topic?
+CONTENT SELECTION:
+- Most significant/breaking story first for each topic
+- Prioritize: NBA and Redlands CA if notable
+- Skip topics without specific facts or if sources are vague
+- Accuracy > word count (better to have fewer quality stories)${topicBalanceGuidance}
 
-EXAMPLES OF VIOLATIONS:
-Source: "NBA News, Scores & Expert Analysis | Sports Illustrated"
-❌ WRONG: "The Lakers defeated the Heat 112-108 last night with LeBron James leading..."
-✅ CORRECT: Skip this topic - the source is a generic portal with no game details
-
-Source: "Tesla continues work on battery technology"
-❌ WRONG: "Tesla CEO Elon Musk announced a 30% range improvement at the Texas facility..."
-✅ CORRECT: Only include facts the article explicitly states, or skip if too vague
-
-SENSITIVE CONTENT POLICY:
-- You MUST cover crime, violence, and other difficult news topics professionally
-- Use neutral, factual tone without graphic details
+SENSITIVE CONTENT:
+- Cover crime/violence professionally with neutral tone
 - Focus on facts: who, what, where, when, why
-- Avoid sensationalism while maintaining editorial integrity
-- Example: "Authorities in Dubai are investigating after the remains of two individuals were discovered" instead of graphic descriptions
+- Avoid graphic details
 
-CRITICAL REQUIREMENTS:
-- Start with EXACTLY: "Here's your morning report for ${formattedDate}."
-- Include a brief "On This Day in History" section (1-2 sentences) near the end, before the closing
-- End with EXACTLY: "That's it for the morning report. Have a great day!"
-- TARGET LENGTH: ${IDEAL_MIN}-${IDEAL_MAX} words (~5-8 minutes of audio)
-- With ${topicCount} topics, aim for roughly ${minPerTopic}-${maxPerTopic} words per topic when sources provide detail
-- Minimum acceptable length: 700 words, but accuracy always overrides word count
-- If sources are thin, write less or skip the topic — NEVER fabricate to fill space
-- Every story MUST include specific facts: names, numbers, locations, dates, companies
-- Avoid vague filler phrases ("buzzing with activity", "seeing momentum", "noteworthy increase", etc.)
-- Do not alter political titles unless the sources confirm the change. If uncertain, omit the title instead of guessing.
+NO:
+❌ Source citations ("according to", "reports say")
+❌ Vague phrases ("buzzing with activity", "seeing momentum")
+❌ Political title changes unless confirmed
+❌ Repeating stories from previous reports (unless NEW development with NEW facts)
 
-🔴 FRESHNESS REQUIREMENT (CRITICAL):
-- Breaking news topics (World, US, NBA, Redlands, Travel): ONLY stories from last 24 hours
-- Tech/Science topics (AI, EVs, Robotics, Anti-Aging, eVTOL, etc.): Stories from last 3-4 days acceptable
-- Check publication dates in source metadata - respect the tiered freshness windows
-- For sports (NBA): Only include games/events from yesterday or today
-- For tech announcements: Recent launches/updates within the past few days
-- Better to skip a topic entirely than include genuinely stale news
-
-NATIONAL NEWS QUALITY STANDARDS:
-- Include SPECIFIC names (people, companies, organizations)
-- Include NUMBERS (percentages, amounts, statistics)
-- Include LOCATIONS (cities, countries, regions)
-- Include TIMEFRAMES (yesterday, this week, Q4 results)
-- Cite ACTUAL events, announcements, or developments
-- Use ACTIVE voice with concrete details
-
-FORBIDDEN PHRASES (causes immediate failure):
-❌ "buzzing with activity"
-❌ "seeing new momentum"
-❌ "noteworthy increase"
-❌ "industry experts are enthusiastic"
-❌ "recent breakthroughs"
-❌ "may soon be"
-❌ ANY vague generalization without specific facts
-
-REQUIRED FORMAT for each story:
-✅ "[Company/Person] announced [specific thing] on [date/timeframe]"
-✅ "[Metric] increased/decreased by [number]% in [location/sector]"
-✅ "[Organization] launched [specific product/initiative] featuring [details]"
-
-CITATION REQUIREMENTS:
-- DO NOT cite sources in the report
-- NO attribution phrases like "according to", "Reuters reports", etc.
-- NO publication dates or source references
-- Simply state the facts directly as a news anchor would
-
-CONTENT SELECTION (ACCURACY > WORD COUNT):
-- 🚨 MOST IMPORTANT STORY FIRST: For each topic, identify and report the MOST SIGNIFICANT/BREAKING story
-  - Major product launches (e.g., "OpenAI releases new LLM model") > minor updates
-  - Breaking announcements > ongoing developments
-  - Industry-changing news > incremental progress
-  - Ask yourself: "What's the BIGGEST news in this topic area today?"
-  - Example: If OpenAI released a new LLM model yesterday, that's MAJOR AI news and MUST be covered
-  - Skip smaller stories if a major story exists in the same topic
-- PRIORITY TOPICS (prioritize these if notable): NBA, Redlands CA Local News
-- TOPIC BALANCE: Each topic should appear at least once every 5 reports to ensure comprehensive coverage
-- Only include stories with SPECIFIC, verifiable facts
-- MUST have: organization/person name + number/metric + location/timeframe
-- Skip any topic where source data is too vague or story isn't newsworthy
-- 🚨 CRITICAL: Better to skip topics and have a shorter report than to fabricate information
-- 🚨 ACCURACY ALWAYS TRUMPS WORD COUNT - a 1000-word accurate report is better than a 2000-word hallucinated report
-- If you can only find verifiable information for 6-8 topics, write ONLY about those topics
-- Focus on: major announcements, statistical changes, product launches, policy decisions
-- If NBA or Redlands news is notable and meets quality standards, prioritize it
-- Skip any topic (including priority topics) if the news isn't significant or lacks specifics
-- If a topic has only generic portal links with no actual news stories, SKIP it entirely${topicBalanceGuidance}
-
-ON THIS DAY IN HISTORY:
-- After covering the main news topics, include a brief "On This Day in History" segment
-- MUST be 1-2 sentences only
-- State an interesting, specific historical event that occurred on ${monthName} ${day}
-- Include the YEAR and specific FACTS (names, numbers, locations)
-- Example format: "On this day in [YEAR], [specific event with names and details]."
-- Keep it concise and factual - this is a brief transition before the closing
-
-QUALITY VALIDATION (each story must pass):
-✅ Contains at least ONE specific organization/person name
-✅ Contains at least ONE specific number, percentage, or metric
-✅ Contains at least ONE specific location, date, or timeframe
-
-DELIVERY STYLE:
-- Professional but conversational (NPR/BBC style)
-- Short sentences for audio clarity
-- Smooth transitions between topics WITHOUT stating topic names as headers
-- DO NOT say "World News", "NBA", "Electric Vehicles", etc. as section titles
-- Instead, incorporate topic transitions naturally into the first sentence:
-  ✅ "In international developments, the United Nations..."
-  ✅ "Turning to professional basketball, the Dallas Mavericks..."
-  ✅ "On the automotive front, Tesla announced..."
-  ❌ "World News. The United Nations..."
-  ❌ "NBA. The Dallas Mavericks..."
-
-🚨 STRICTLY PROHIBITED - NO EDITORIALIZATION:
-- DO NOT add your own analysis, opinions, or interpretation
-- DO NOT speculate about future implications or what "might" happen
-- DO NOT editorialize or add commentary beyond the facts
-- DO NOT use phrases like "this could signal", "this may indicate", "experts believe"
-- Simply report what happened - names, numbers, dates, facts
-- Let the facts speak for themselves without editorial framing
-
-NEWS CONTENT BY TOPIC:
-${newsContentStr}${previousReportsContext}
-
-Write your news report now. Remember: 
-1. SELECT THE MOST IMPORTANT/BREAKING story for each topic area
-2. SPECIFIC FACTS ONLY (names + numbers + dates) - NO editorialization or speculation
-3. DO NOT cite sources or include attribution phrases
-4. If a story can't meet quality standards, skip it entirely
-5. DO NOT REPEAT stories from previous reports unless there's a NEW development with NEW facts`;
+NEWS BY TOPIC:
+${newsContentStr}${previousReportsContext}`;
 
   // Enhanced system message with non-negotiable requirements
-  const systemMessage = `You are a professional news anchor writing concise daily audio briefings for Morning Report.
+  const systemMessage = `You are a professional news anchor writing daily audio briefings.
 
-ABSOLUTE PRIORITIES (in order):
-1. ACCURACY — rely only on the supplied articles, skip anything unverifiable, never speculate.
-2. STRUCTURE — use the required opening line, include "On This Day in History" (1-2 sentences), and finish with the exact closing line.
-3. QUALITY — each story must contain concrete names, numbers, locations, and time references drawn from the sources.
-4. FRESHNESS — avoid repeating prior-report stories unless there is a clearly described new development with new facts.
-5. LENGTH — aim for ${IDEAL_MIN}-${IDEAL_MAX} words overall, but never sacrifice accuracy to hit a number.
+PRIORITIES:
+1. ACCURACY — Only use facts from provided articles, skip unverifiable content
+2. SPECIFICITY — Include names, numbers, locations, dates
+3. FRESHNESS — Don't repeat old stories unless there's a NEW development
+4. QUALITY > QUANTITY — ${IDEAL_MIN}-${IDEAL_MAX} words, but accuracy always wins
 
-If a source is generic or lacks verifiable facts, skip it.`;
+Skip generic sources or vague stories.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
